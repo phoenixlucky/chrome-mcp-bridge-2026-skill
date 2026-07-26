@@ -56,7 +56,15 @@ paths = ["E:\\home\\browser-localmcp-skills\\.reasonix\\skills"]   # extra custo
 # disabled_skills = ["review"]   # hide noisy or unwanted skills
 
 [permissions]
-allow = ["Edit", "Bash(cd D:\\home\\browser-localmcp-skills; git remote -v)", "Bash(cd D:\\home\\browser-localmcp-skills; git add .; git commit -m \"docs: add mcp-chrome-2026 installation guide to README\")"]
+# Per-call gating. mode = writer fallback when no rule matches: ask|allow|deny.
+# Readers always default to allow. Precedence: deny > ask > allow > fallback.
+# Rules are "Tool" or "Tool(specifier)"; e.g. Bash(go test:*), Edit(src/**).
+mode  = "ask"
+# deny = ["Bash(rm -rf*)", "Bash(git push*)"]   # hard-blocked in every mode
+# allow = ["Bash(go test:*)", "Bash(git status:*)"]   # never prompted
+# ask = ["Edit(src/**)"]   # force a prompt even if otherwise allowed
+
+allow = ["Bash(git remote:*)", "Bash(git branch:*)"]
 [sandbox]
 # Confine tool blast radius. File-writers (write_file/edit_file/multi_edit/move_file)
 # may only write under workspace_root (empty = current dir) and allow_write extras.
