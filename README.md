@@ -21,6 +21,7 @@
   <a href="#-快速开始"><img src="https://img.shields.io/badge/🚀-快速开始-6C47FF" alt="快速开始"></a>
   <a href="#-能力矩阵"><img src="https://img.shields.io/badge/📊-能力矩阵-6C47FF" alt="能力矩阵"></a>
   <a href="#-桥接脚本"><img src="https://img.shields.io/badge/🔧-桥接脚本-6C47FF" alt="桥接脚本"></a>
+  <a href="#-技术细节"><img src="https://img.shields.io/badge/🧪-技术细节-6C47FF" alt="技术细节"></a>
 </p>
 
 ---
@@ -85,31 +86,29 @@
 
 <table>
   <tr>
-    <td width="50%" align="center">
+    <td width="33%" align="center">
       <h3>🔌 零配置连接</h3>
       <p>一条命令初始化，session ID 自动持久化到临时文件，跨调用无缝复用</p>
     </td>
-    <td width="50%" align="center">
-      <h3>🔄 智能重连</h3>
-      <p>Session 超时自动检测、清理过期状态、重新初始化，全程无需人工干预</p>
+    <td width="33%" align="center">
+      <h3>🔄 智能自动恢复</h3>
+      <p>Session 超时自动检测 → 清理过期状态 → 重新 init 初始化，全程无人工干预</p>
+    </td>
+    <td width="33%" align="center">
+      <h3>📡 双协议解析</h3>
+      <p>即时 JSON 响应和 SSE 流式响应均正确解析，兼容所有标准 MCP 服务端实现</p>
     </td>
   </tr>
   <tr>
-    <td width="50%" align="center">
-      <h3>📡 双协议支持</h3>
-      <p>即时 JSON 响应和 SSE 流式响应均能正确解析，兼容所有 MCP 实现</p>
+    <td width="33%" align="center">
+      <h3>📥 --stdin 参数模式</h3>
+      <p>通过管道传入 JSON 参数，彻底解决 PowerShell/bash 中 <code>&amp;</code> 等特殊字符被截断问题</p>
     </td>
-    <td width="50%" align="center">
+    <td width="33%" align="center">
       <h3>⚡ 零外部依赖</h3>
-      <p>仅使用 Node.js v18+ 内置 <code>fetch</code> API，无需 npm install</p>
+      <p>仅使用 Node.js v18+ 内置 <code>fetch</code> API，无需 npm install，即克隆即用</p>
     </td>
-  </tr>
-  <tr>
-    <td width="50%" align="center">
-      <h3>🛡️ 超时保护</h3>
-      <p>30 秒请求超时兜底，网络错误最多重试 2 次，防止死锁</p>
-    </td>
-    <td width="50%" align="center">
+    <td width="33%" align="center">
       <h3>🧩 Reasonix 原生集成</h3>
       <p>以技能包形式存在，安装即用，与 AI Agent 工作流深度契合</p>
     </td>
@@ -207,19 +206,23 @@ node .reasonix/skills/mcp-streamable-connect/mcp-bridge.js close
 
 ## 📊 能力矩阵
 
-本技能包对接 [mcp-chrome-2026](https://github.com/phoenixlucky/mcp-chrome-2026) 服务，覆盖 **7 大类 28+ 浏览器自动化工具**：
+本技能包对接 [mcp-chrome-2026](https://github.com/phoenixlucky/mcp-chrome-2026) 服务，覆盖 **9 大类 30+ 浏览器自动化工具**：
 
 | 分类 | 工具 | 核心能力 |
 |:---:|:---|:---|
-| <h3>📊</h3>**浏览器管理** | `get_windows_and_tabs` · `chrome_navigate` · `chrome_close_tabs` · `chrome_switch_tab` · `chrome_go_back_or_forward` | 窗口标签页管理、页面导航、历史控制 |
-| <h3>📸</h3>**截图视觉** | `chrome_screenshot` | 全页/元素截图，支持 base64 输出 |
-| <h3>🌐</h3>**网络监控** | `chrome_network_capture_start/stop` · `chrome_network_debugger_start/stop` · `chrome_network_request` · `chrome_block_images` | 请求捕获、自定义请求、资源拦截 |
-| <h3>🔍</h3>**内容分析** | `search_tabs_content` · `chrome_get_web_content` · `chrome_get_interactive_elements` | AI 语义搜索、内容提取、交互元素定位 |
-| <h3>🎯</h3>**交互操作** | `chrome_click_element` · `chrome_fill_or_select` · `chrome_keyboard` | 点击、表单填写、键盘快捷键 |
+| <h3>📊</h3>**浏览器管理** | `get_windows_and_tabs` · `chrome_navigate` · `chrome_close_tabs` · `chrome_switch_tab` | 窗口标签页管理、页面导航、历史控制 |
+| <h3>📸</h3>**截图视觉** | `chrome_screenshot` · `chrome_computer`¹ · `chrome_gif_recorder` | 全页/元素截图、坐标鼠标键盘交互、操作 GIF 录制 |
+| <h3>🌐</h3>**网络监控** | `chrome_network_capture` · `chrome_network_request` · `chrome_block_images` | 请求捕获、自定义请求、资源拦截 |
+| <h3>🔍</h3>**内容分析** | `chrome_read_page` · `chrome_get_web_content` · `chrome_get_page_text` · `chrome_extract` | 无障碍树分析、内容提取、Readability 正文解析、结构化数据抽取 |
+| <h3>🎯</h3>**交互操作** | `chrome_click_element` · `chrome_fill_or_select` · `chrome_keyboard` · `chrome_upload_file` · `chrome_handle_dialog` · `chrome_request_element_selection` | 点击、表单填写、键盘快捷键、文件上传、对话框处理、人工辅助选元素 |
+| <h3>💻</h3>**脚本执行** | `chrome_javascript` · `chrome_console` | 在页面上下文执行 JS、捕获控制台日志 |
 | <h3>📚</h3>**数据管理** | `chrome_history` · `chrome_bookmark_search/add/delete` | 历史记录检索、书签 CRUD |
-| <h3>🕸️</h3>**抓取提取** | `chrome_get_tab_url` · `chrome_scroll` · `chrome_get_scroll_state` · `chrome_wait` · `chrome_extract` · `chrome_get_page_text` · `chrome_click_and_wait` | 结构化数据提取、Readability 正文解析、滚动控制 |
+| <h3>🕸️</h3>**抓取提取** | `chrome_get_tab_url` · `chrome_scroll` · `chrome_get_scroll_state` · `chrome_wait` · `chrome_click_and_wait` | URL 获取、滚动控制、等待元素、组合操作 |
+| <h3>⚡</h3>**性能分析** | `performance_start_trace` · `performance_stop_trace` · `performance_analyze_insight` | 页面性能 Trace 录制、DevTools 性能分析 |
 
-> 💡 **提示**：执行 `node mcp-bridge.js call tools/list` 可获取实时的工具列表及参数签名。
+> ¹ `chrome_computer` 是一个全能计算机器人，支持鼠标点击/拖动/滚动、键盘输入、文字填写、页面等待、缩放调整等操作，可替代多个独立工具。
+>
+> 💡 **提示**：详细的工具调用示例和参数说明请参阅 [SKILL.md](.reasonix/skills/mcp-streamable-connect/SKILL.md)。执行 `node mcp-bridge.js call tools/list` 可获取实时的工具列表及参数签名。
 
 <br>
 
@@ -234,10 +237,28 @@ node mcp-bridge.js <command> [args...]
 | 命令 | 参数 | 说明 |
 |:---|:---|:---|
 | `init` | — | 初始化 MCP 连接，获取 session ID |
-| `call` | `<method>` `[params-json]` | 调用 JSON-RPC 方法 |
+| `call` | `<method>` `[params\|--stdin]` | 调用 JSON-RPC 方法（详见下方） |
 | `ping` | — | 心跳保活，延长 session 有效期 |
 | `close` | — | 发送 close 通知，清理 session 文件 |
 | *(无参数)* | — | 显示帮助信息 |
+
+#### `call` 命令的参数传递方式
+
+`call` 支持两种参数传递方式：
+
+**方式一：命令行直接传入**（适合简单参数）
+```bash
+node mcp-bridge.js call tools/call '{"name":"chrome_navigate","arguments":{"url":"https://example.com"}}'
+```
+
+**方式二：`--stdin` 管道模式（推荐，避免特殊字符被 shell 截断）**
+```powershell
+# 通过管道传入 JSON（解决 PowerShell 中 & 等字符的转义问题）
+echo '{"name":"chrome_navigate","arguments":{"url":"https://example.com"}}' | node mcp-bridge.js call tools/call --stdin
+
+# 也可以从文件重定向
+node mcp-bridge.js call tools/call --stdin < params.json
+```
 
 ### 完整工作流
 
@@ -276,11 +297,15 @@ node mcp-bridge.js close
             ┌─────────┼─────────┐
             │         │         │
             ▼         ▼         ▼
-       ┌────────┐ ┌────────┐ ┌────────┐
-       │ 调用工具 │ │ 心跳   │ │ 关闭   │
-       │ 复用 ID │ │ 延长   │ │ 清理   │
-       └────────┘ └────────┘ └────────┘
+       ┌────────┐ ┌────────┐ ┌────────┐      ┌──────────────┐
+       │ 调用工具 │ │ 心跳   │ │ 关闭   │  ←── │  自动恢复机制  │
+       │ 复用 ID │ │ 延长   │ │ 清理   │      │  session 超时 │
+       └────────┘ └────────┘ └────────┘      │  →清理→重试   │
+                                             │  →自动 re-init │
+                                             └──────────────┘
 ```
+
+> **智能自动恢复**：当服务端返回 Session 相关错误时，桥接脚本会自动清理过期 session 文件并重试请求。重试耗尽后，将自动执行 `init` 重新初始化连接，最大程度减少人工干预。
 
 <br>
 
@@ -297,7 +322,9 @@ browser-localmcp-skills/
 │
 ├── reasonix.toml                            # ⚙️ Reasonix 项目配置
 ├── .gitignore                               # 🔒 版本控制忽略规则
-├── README.md                                # 📖 本文件
+├── README.md                                # 📖 项目总览（本文件）
+│   └── 详细工具操作手册 → 见 SKILL.md
+│
 └── LICENSE                                  # ⚖️ MIT 许可证
 ```
 
