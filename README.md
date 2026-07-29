@@ -46,7 +46,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                        AI Agent (Reasonix)                      │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │               mcp-streamable-connect 技能                   │  │
+│  │               chrome-mcp-bridge-2026-skill 技能                   │  │
 │  │   ┌──────────────┐    CLI 调用     ┌──────────────────┐   │  │
 │  │   │  SKILL.md    │ ──────────────→ │  mcp-bridge.js   │   │  │
 │  │   │  (操作手册)   │ ←────────────── │  (Node.js 桥接)  │   │  │
@@ -177,7 +177,7 @@ curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:12306/mcp
 git clone https://github.com/phoenixlucky/chrome-mcp-bridge-2026-skill.git
 cd chrome-mcp-bridge-2026-skill
 
-# 技能位于 .reasonix/skills/mcp-streamable-connect/
+# 技能位于 .reasonix/skills/chrome-mcp-bridge-2026-skill/
 # Reasonix 自动发现并注册，无需额外操作
 ```
 
@@ -189,17 +189,17 @@ curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:12306/mcp
 # 预期输出: 200
 
 # 2️⃣ 初始化连接
-node .reasonix/skills/mcp-streamable-connect/mcp-bridge.js init
+node .reasonix/skills/chrome-mcp-bridge-2026-skill/mcp-bridge.js init
 
 # 3️⃣ 列出可用工具
-node .reasonix/skills/mcp-streamable-connect/mcp-bridge.js call tools/list
+node .reasonix/skills/chrome-mcp-bridge-2026-skill/mcp-bridge.js call tools/list
 
 # 4️⃣ 调用工具（示例：导航到网页）
-node .reasonix/skills/mcp-streamable-connect/mcp-bridge.js call tools/call \
+node .reasonix/skills/chrome-mcp-bridge-2026-skill/mcp-bridge.js call tools/call \
   '{"name":"chrome_navigate","arguments":{"url":"https://example.com"}}'
 
 # 5️⃣ 关闭连接
-node .reasonix/skills/mcp-streamable-connect/mcp-bridge.js close
+node .reasonix/skills/chrome-mcp-bridge-2026-skill/mcp-bridge.js close
 ```
 
 <br>
@@ -222,7 +222,7 @@ node .reasonix/skills/mcp-streamable-connect/mcp-bridge.js close
 
 > ¹ `chrome_computer` 是一个全能计算机器人，支持鼠标点击/拖动/滚动、键盘输入、文字填写、页面等待、缩放调整等操作，可替代多个独立工具。
 >
-> 💡 **提示**：详细的工具调用示例和参数说明请参阅 [SKILL.md](.reasonix/skills/mcp-streamable-connect/SKILL.md)。执行 `node mcp-bridge.js call tools/list` 可获取实时的工具列表及参数签名。
+> 💡 **提示**：详细的工具调用示例和参数说明请参阅 [SKILL.md](.reasonix/skills/chrome-mcp-bridge-2026-skill/SKILL.md)。执行 `node mcp-bridge.js call tools/list` 可获取实时的工具列表及参数签名。
 
 <br>
 
@@ -316,7 +316,7 @@ chrome-mcp-bridge-2026-skill/
 │
 ├── .reasonix/
 │   └── skills/
-│       └── mcp-streamable-connect/          # 📦 技能包
+│       └── chrome-mcp-bridge-2026-skill/          # 📦 技能包
 │           ├── SKILL.md                     #   ├─ AI 操作手册
 │           └── mcp-bridge.js                #   └─ Node.js 桥接脚本
 │
