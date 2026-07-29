@@ -246,6 +246,8 @@ node mcp-bridge.js call tools/call --stdin < params.json
 
 ### Cursor
 
+#### 方式一：Settings 界面配置
+
 在 **Settings → MCP Servers** 中添加：
 
 | 字段 | 值 |
@@ -254,6 +256,23 @@ node mcp-bridge.js call tools/call --stdin < params.json
 | **Type** | `command` |
 | **Command** | `node` |
 | **Args** | `["path/to/mcp-bridge.js", "--server"]` |
+
+#### 方式二：Codex（`.cursor/mcp.json`）
+
+在项目根目录创建 `.cursor/mcp.json`：
+
+```json
+{
+  "mcpServers": {
+    "chrome": {
+      "command": "node",
+      "args": ["path/to/mcp-bridge.js", "--server"]
+    }
+  }
+}
+```
+
+> Cursor 会自动读取项目下的 `.cursor/mcp.json`，无需额外设置。
 
 ### Windsurf
 
