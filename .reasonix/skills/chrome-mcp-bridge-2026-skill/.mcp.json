@@ -3,7 +3,7 @@
     "chrome": {
       "command": "node",
       "args": [
-        ".reasonix/skills/mcp-streamable-connect/mcp-bridge.js",
+        ".reasonix/skills/chrome-mcp-bridge-2026-skill/mcp-bridge.js",
         "--server"
       ]
     }
