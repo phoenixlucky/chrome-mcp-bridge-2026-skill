@@ -283,15 +283,15 @@ chrome-mcp-bridge-2026-skill/
 ### Session 生命周期
 
 ```mermaid
-graph LR
-    A[启动] --> B[init]
-    B --> C[POST /mcp {initialize}]
-    C --> D[服务端分配 sessionId]
-    D --> E[持久化到 %TEMP%/mcp-bridge-session.json]
-    E --> F[复用 ID 调用工具]
-    F --> G{超时?}
+flowchart LR
+    A["🚀 启动"] --> B["📡 init"]
+    B --> C["POST /mcp (initialize)"]
+    C --> D["✅ 分配 sessionId"]
+    D --> E["💾 持久化到临时文件"]
+    E --> F["🔁 复用 ID 调用工具"]
+    F --> G{"⏱ 超时?"}
     G -->|否| F
-    G -->|是| H[清理过期状态]
+    G -->|是| H["🧹 清理过期状态"]
     H --> C
 ```
 
