@@ -32,9 +32,18 @@ const MAX_RETRIES = 2;
 const STDIN_TIMEOUT_MS = 3000;
 const SESSION_FILE = path.join(os.tmpdir(), 'mcp-bridge-session.json');
 const SERVER_NAME = 'mcp-bridge-server';
-const SERVER_VERSION = '3.0.0';
+const SERVER_VERSION = '3.1.0';
 const BACKEND_CLIENT_NAME = 'mcp-bridge-backend';
-const BACKEND_CLIENT_VERSION = '3.0.0';
+const BACKEND_CLIENT_VERSION = '3.1.0';
+
+// MCP 协议版本协商 — 与服务端 SDK 列表保持一致
+const SUPPORTED_PROTOCOL_VERSIONS = [
+  '2025-11-25', '2025-06-18', '2025-03-26',
+  '2024-11-05', '2024-10-07',
+];
+const LATEST_PROTOCOL_VERSION = '2025-11-25';
+/** 本次会话协商确定的协议版本（在 initialize 时确定） */
+let negotiatedProtocolVersion = LATEST_PROTOCOL_VERSION;
 
 function debug(...args) {
   if (process.env.DEBUG) console.error('[桥接-debug]', ...args);
@@ -184,7 +193,7 @@ async function callWithRetry(method, params = {}) {
         console.error('[桥接] Session 重试耗尽，尝试重新初始化...');
         try {
           await sendRequest('initialize', {
-            protocolVersion: '2024-11-05',
+            protocolVersion: LATEST_PROTOCOL_VERSION,
             capabilities: { roots: { listChanged: false }, sampling: {} },
             clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
           });
@@ -324,11 +333,12 @@ function extractTools(backendResult) {
 async function initBackend() {
   console.error('[mcp-server] 正在连接后端 MCP 服务...');
   const initResult = await callWithRetry('initialize', {
-    protocolVersion: '2024-11-05',
+    protocolVersion: LATEST_PROTOCOL_VERSION,
     capabilities: { roots: { listChanged: false }, sampling: {} },
     clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
   });
   console.error('[mcp-server] 后端 MCP 连接成功');
+  debug(`协商协议版本: ${LATEST_PROTOCOL_VERSION}`);
 
   let backendTools = [];
   try {
@@ -348,11 +358,18 @@ async function handleRequest(id, method, params) {
 
   switch (method) {
     case 'initialize': {
+      // 版本协商：接受客户端请求的版本（如果在支持列表中）
+      const requestedVersion = params && params.protocolVersion;
+      const negotiated = SUPPORTED_PROTOCOL_VERSIONS.includes(requestedVersion)
+        ? requestedVersion
+        : LATEST_PROTOCOL_VERSION;
+      negotiatedProtocolVersion = negotiated;
+
       writeMcpMessage({
         jsonrpc: '2.0',
         id,
         result: {
-          protocolVersion: '2024-11-05',
+          protocolVersion: negotiated,
           capabilities: {
             tools: {},
             roots: { listChanged: false },
@@ -545,6 +562,8 @@ async function main() {
     console.log(`
 mcp-bridge.js — Streamable HTTP MCP 桥接工具 (v${SERVER_VERSION})
 
+支持协议版本: ${SUPPORTED_PROTOCOL_VERSIONS.join(', ')}
+
 模式:
   --server                          以 stdio MCP Server 模式运行
   path                              显示脚本绝对路径
@@ -591,10 +610,14 @@ ${psHint}`);
     switch (command) {
       case 'init':
         result = await callWithRetry('initialize', {
-          protocolVersion: '2024-11-05',
+          protocolVersion: LATEST_PROTOCOL_VERSION,
           capabilities: { roots: { listChanged: false }, sampling: {} },
           clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
         });
+        if (result && result.protocolVersion) {
+          negotiatedProtocolVersion = result.protocolVersion;
+        }
+        debug(`协商协议版本: ${negotiatedProtocolVersion}`);
         break;
 
       case 'path':
