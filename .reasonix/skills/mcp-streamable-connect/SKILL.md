@@ -16,8 +16,8 @@ description: 通过 Node.js 桥接脚本稳定连接 streamable-http MCP 服务�
 ### 通过 install_source 安装
 
 ```bash
-# 从 GitHub 安装（待发布后）
-install_source https://raw.githubusercontent.com/你的仓库/mcp-streamable-connect/main/SKILL.md
+# 从 GitHub 安装
+install_source https://raw.githubusercontent.com/phoenixlucky/browser-localmcp-skills/main/.reasonix/skills/mcp-streamable-connect
 
 # 从本地路径安装
 install_source /path/to/mcp-streamable-connect
