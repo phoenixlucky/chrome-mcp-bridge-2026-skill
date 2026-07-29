@@ -246,8 +246,6 @@ node mcp-bridge.js call tools/call --stdin < params.json
 
 ### Cursor
 
-#### 方式一：Settings 界面配置
-
 在 **Settings → MCP Servers** 中添加：
 
 | 字段 | 值 |
@@ -257,9 +255,9 @@ node mcp-bridge.js call tools/call --stdin < params.json
 | **Command** | `node` |
 | **Args** | `["path/to/mcp-bridge.js", "--server"]` |
 
-#### 方式二：Codex（`.cursor/mcp.json`）
+### Codex
 
-在项目根目录创建 `.cursor/mcp.json`：
+在项目根目录创建 `.cursor/mcp.json`（Codex 兼容 Cursor 的 MCP 配置格式）：
 
 ```json
 {
@@ -271,8 +269,6 @@ node mcp-bridge.js call tools/call --stdin < params.json
   }
 }
 ```
-
-> Cursor 会自动读取项目下的 `.cursor/mcp.json`，无需额外设置。
 
 ### Windsurf
 
