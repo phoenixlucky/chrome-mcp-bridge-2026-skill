@@ -162,7 +162,7 @@ mcp-streamable-connect/
 ├── SKILL.md              ← 本文件（技能入口 + 完整文档）
 ├── README.md             ← 补充参考文档
 ├── mcp-bridge.js         ← 桥接脚本（v3.0）
-└── .mcp.json.example     ← MCP 配置模板
+└── .mcp.json              ← MCP 配置（开箱即用，复制到项目根目录）
 ```
 
 ## 技术原理

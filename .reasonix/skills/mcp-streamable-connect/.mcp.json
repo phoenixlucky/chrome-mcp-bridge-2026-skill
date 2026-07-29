@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "chrome": {
+      "command": "node",
+      "args": [
+        ".reasonix/skills/mcp-streamable-connect/mcp-bridge.js",
+        "--server"
+      ]
+    }
+  }
+}
