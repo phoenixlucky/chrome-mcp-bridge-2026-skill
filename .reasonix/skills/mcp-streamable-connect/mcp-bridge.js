@@ -1,26 +1,46 @@
 #!/usr/bin/env node
 /**
- * mcp-bridge.js — Streamable HTTP MCP 桥接脚本 (修复版)
+ * mcp-bridge.js — Streamable HTTP MCP 桥接脚本 (v3.0)
  *
- * 🔧 修复内容：
- *   1. 新增 --stdin 模式：从 stdin 读取 JSON params，避免 PowerShell 中 & 被截断
- *   2. JSON-RPC 错误检测：服务器返回 {error:{...}} 时正确抛出异常
- *   3. Session 自动恢复：检测到 session 错误后自动清理并重新 init
- *   4. callWithRetry 在 session 重试耗尽时触发自动重新初始化
+ * 一个通用的 MCP 协议桥接工具，支持两种运行模式：
+ *
+ * 🖥️ CLI 模式（默认）：
+ *   将 streamable-http MCP 服务通过 CLI 命令暴露给 shell 环境使用。
+ *   适用于不支持 SSE 长连接的 AI 代理。
+ *
+ * 🧩 Server 模式（--server）：
+ *   作为一个标准的 stdio MCP Server 运行，内部自动代理到
+ *   streamable-http MCP 服务。任何支持 MCP 的客户端
+ *   （Claude Desktop、VS Code、Cursor 等）都可以直接配置使用。
+ *
+ * 环境变量：
+ *   MCP_SERVER_URL   - 后端 MCP 服务地址（默认 http://127.0.0.1:12306/mcp）
+ *   DEBUG             - 设为 1 开启详细日志
  */
 
 'use strict';
 
-const MCP_URL = 'http://127.0.0.1:12306/mcp';
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
+
+// ── 配置 ──────────────────────────────────────────────────────────────────
+
+const MCP_URL = process.env.MCP_SERVER_URL || 'http://127.0.0.1:12306/mcp';
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 2;
 const STDIN_TIMEOUT_MS = 3000;
-const SESSION_FILE = require('path').join(
-  require('os').tmpdir(),
-  'mcp-bridge-session.json'
-);
+const SESSION_FILE = path.join(os.tmpdir(), 'mcp-bridge-session.json');
+const SERVER_NAME = 'mcp-bridge-server';
+const SERVER_VERSION = '3.0.0';
+const BACKEND_CLIENT_NAME = 'mcp-bridge-backend';
+const BACKEND_CLIENT_VERSION = '3.0.0';
 
-const fs = require('fs');
+function debug(...args) {
+  if (process.env.DEBUG) console.error('[桥接-debug]', ...args);
+}
+
+// ── Session 管理 ──────────────────────────────────────────────────────────
 
 function loadSession() {
   try {
@@ -46,7 +66,8 @@ function clearSession() {
   } catch {}
 }
 
-// ── JSON-RPC 错误检测（修复 #2） ────────────────────────────────────────
+// ── JSON-RPC 错误检测 ─────────────────────────────────────────────────────
+
 function isJsonRpcError(json) {
   return json && json.error && (json.error.code || json.error.message);
 }
@@ -58,6 +79,7 @@ function isSessionError(json) {
 }
 
 // ── SSE 解析 ──────────────────────────────────────────────────────────────
+
 function parseSSEStream(text) {
   const events = [];
   const lines = text.split('\n');
@@ -77,6 +99,7 @@ function parseSSEStream(text) {
 }
 
 // ── HTTP 请求 ─────────────────────────────────────────────────────────────
+
 async function sendRequest(method, params = {}) {
   const sessionId = loadSession();
   const headers = {
@@ -117,7 +140,7 @@ async function sendRequest(method, params = {}) {
     const events = parseSSEStream(rawText);
     for (const evt of events) {
       if (evt.event === 'message' && evt.data) {
-        if (isJsonRpcError(evt.data)) {  // 🔧 修复 #2：检测 SSE 中的错误
+        if (isJsonRpcError(evt.data)) {
           const err = new Error(evt.data.error.message || '未知错误');
           err.jsonRpcError = evt.data.error;
           err.isSessionError = isSessionError(evt.data);
@@ -130,7 +153,7 @@ async function sendRequest(method, params = {}) {
     return { _sseEvents: events };
   } else {
     const json = await response.json();
-    if (isJsonRpcError(json)) {  // 🔧 修复 #2：检测 JSON 响应中的错误
+    if (isJsonRpcError(json)) {
       const err = new Error(json.error.message || '未知错误');
       err.jsonRpcError = json.error;
       err.isSessionError = isSessionError(json);
@@ -140,7 +163,8 @@ async function sendRequest(method, params = {}) {
   }
 }
 
-// ── 带重试的调用（修复 #3：session 自动恢复）───────────────────────────
+// ── 带重试的调用 ─────────────────────────────────────────────────────────
+
 async function callWithRetry(method, params = {}) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
@@ -157,13 +181,12 @@ async function callWithRetry(method, params = {}) {
           console.error(`[桥接] Session 已过期，清理后重试 (${attempt}/${MAX_RETRIES})...`);
           continue;
         }
-        // 🔧 修复 #3：重试耗尽后自动重新 init
         console.error('[桥接] Session 重试耗尽，尝试重新初始化...');
         try {
           await sendRequest('initialize', {
             protocolVersion: '2024-11-05',
             capabilities: { roots: { listChanged: false }, sampling: {} },
-            clientInfo: { name: 'mcp-bridge', version: '1.0.0' },
+            clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
           });
           console.error('[桥接] 重新初始化成功，重试原请求...');
           return await sendRequest(method, params);
@@ -181,7 +204,8 @@ async function callWithRetry(method, params = {}) {
   throw lastError;
 }
 
-// ── 从 stdin 读取 JSON（修复 #1：解决 & 截断问题）──────────────────────
+// ── 从 stdin 读取 JSON（CLI --stdin 模式）────────────────────────────────
+
 function readStdin() {
   return new Promise((resolve, reject) => {
     if (process.stdin.isTTY) {
@@ -203,27 +227,365 @@ function readStdin() {
   });
 }
 
+// ── MCP Server 模式（--server）────────────────────────────────────────────
+
+/**
+ * 从 stdin 读取一个完整的 JSON-RPC 消息（Content-Length 协议）
+ *
+ * MCP stdio 传输协议格式：
+ *   Content-Length: N\r\n
+ *   \r\n
+ *   {"jsonrpc":"2.0","id":1,...}   ← 恰好 N 字节
+ */
+function readMcpMessage() {
+  return new Promise((resolve, reject) => {
+    let headerBuffer = '';
+    let contentLength = -1;
+    let bodyBuffer = null;
+
+    function onData(chunk) {
+      const str = chunk.toString();
+      if (contentLength === -1) {
+        headerBuffer += str;
+        const headerEnd = headerBuffer.indexOf('\r\n\r\n');
+        if (headerEnd !== -1) {
+          const header = headerBuffer.substring(0, headerEnd);
+          const match = header.match(/Content-Length:\s*(\d+)/i);
+          if (!match) {
+            cleanup();
+            return reject(new Error('MCP 消息缺少 Content-Length 头'));
+          }
+          contentLength = parseInt(match[1], 10);
+          // 头之后的剩余字节作为 body 开头
+          const remaining = Buffer.from(headerBuffer.substring(headerEnd + 4), 'utf-8');
+          bodyBuffer = Buffer.from(remaining);
+          if (bodyBuffer.length >= contentLength) {
+            cleanup();
+            try {
+              resolve(JSON.parse(bodyBuffer.toString('utf-8', 0, contentLength)));
+            } catch (e) {
+              reject(new Error(`JSON 解析失败: ${e.message}`));
+            }
+          }
+        }
+      } else {
+        bodyBuffer = Buffer.concat([bodyBuffer, Buffer.from(str, 'utf-8')]);
+        if (bodyBuffer.length >= contentLength) {
+          cleanup();
+          try {
+            resolve(JSON.parse(bodyBuffer.toString('utf-8', 0, contentLength)));
+          } catch (e) {
+            reject(new Error(`JSON 解析失败: ${e.message}`));
+          }
+        }
+      }
+    }
+
+    function onEnd() {
+      cleanup();
+      reject(new Error('stdin closed'));
+    }
+
+    function onError(err) {
+      cleanup();
+      reject(err);
+    }
+
+    function cleanup() {
+      process.stdin.removeListener('data', onData);
+      process.stdin.removeListener('end', onEnd);
+      process.stdin.removeListener('error', onError);
+    }
+
+    process.stdin.on('data', onData);
+    process.stdin.on('end', onEnd);
+    process.stdin.on('error', onError);
+    process.stdin.setEncoding('utf-8');
+  });
+}
+
+/** 向 stdout 写入一个 JSON-RPC 消息（Content-Length 协议，零依赖） */
+function writeMcpMessage(msg) {
+  const body = JSON.stringify(msg);
+  const byteLen = Buffer.byteLength(body, 'utf-8');
+  process.stdout.write(`Content-Length: ${byteLen}\r\n\r\n${body}`);
+}
+
+/** 统一的后端工具响应提取 */
+function extractTools(backendResult) {
+  if (!backendResult) return [];
+  if (Array.isArray(backendResult.tools)) return backendResult.tools;
+  if (backendResult.result && Array.isArray(backendResult.result.tools)) return backendResult.result.tools;
+  if (Array.isArray(backendResult)) return backendResult;
+  return [];
+}
+
+/** 初始化后端连接并拉取工具列表 */
+async function initBackend() {
+  console.error('[mcp-server] 正在连接后端 MCP 服务...');
+  const initResult = await callWithRetry('initialize', {
+    protocolVersion: '2024-11-05',
+    capabilities: { roots: { listChanged: false }, sampling: {} },
+    clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
+  });
+  console.error('[mcp-server] 后端 MCP 连接成功');
+
+  let backendTools = [];
+  try {
+    const toolsResult = await callWithRetry('tools/list');
+    backendTools = extractTools(toolsResult);
+    console.error(`[mcp-server] 已加载 ${backendTools.length} 个工具`);
+  } catch (err) {
+    console.error(`[mcp-server] 获取工具列表失败: ${err.message}`);
+  }
+
+  return { initResult, backendTools };
+}
+
+/** 处理单个 MCP 请求 */
+async function handleRequest(id, method, params) {
+  debug('收到请求:', method, JSON.stringify(params).substring(0, 200));
+
+  switch (method) {
+    case 'initialize': {
+      writeMcpMessage({
+        jsonrpc: '2.0',
+        id,
+        result: {
+          protocolVersion: '2024-11-05',
+          capabilities: {
+            tools: {},
+            roots: { listChanged: false },
+            sampling: {},
+          },
+          serverInfo: {
+            name: SERVER_NAME,
+            version: SERVER_VERSION,
+          },
+        },
+      });
+      return;
+    }
+
+    case 'tools/list': {
+      let tools = [];
+      try {
+        const result = await callWithRetry('tools/list');
+        tools = extractTools(result);
+      } catch (err) {
+        console.error(`[mcp-server] tools/list 代理失败: ${err.message}`);
+        writeMcpMessage({
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32603, message: `Backend tools/list failed: ${err.message}` },
+        });
+        return;
+      }
+      writeMcpMessage({
+        jsonrpc: '2.0',
+        id,
+        result: { tools },
+      });
+      return;
+    }
+
+    case 'tools/call': {
+      const { name, arguments: args } = params;
+      if (!name) {
+        writeMcpMessage({
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32602, message: 'Missing tool name' },
+        });
+        return;
+      }
+      try {
+        const result = await callWithRetry('tools/call', { name, arguments: args || {} });
+
+        // 标准 MCP 响应：content 数组
+        let content;
+        if (result && Array.isArray(result.content)) {
+          content = result.content;
+        } else {
+          const text = typeof result === 'string'
+            ? result
+            : JSON.stringify(result, null, 2);
+          content = [{ type: 'text', text }];
+        }
+
+        // 检查是否有 isError 标记
+        const response = { content };
+        if (result && result.isError) {
+          response.isError = true;
+        }
+
+        writeMcpMessage({
+          jsonrpc: '2.0',
+          id,
+          result: response,
+        });
+      } catch (err) {
+        writeMcpMessage({
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32603, message: err.message },
+        });
+      }
+      return;
+    }
+
+    case 'ping':
+      writeMcpMessage({
+        jsonrpc: '2.0',
+        id,
+        result: {},
+      });
+      return;
+
+    case 'resources/list':
+      writeMcpMessage({
+        jsonrpc: '2.0',
+        id,
+        result: { resources: [] },
+      });
+      return;
+
+    case 'prompts/list':
+      writeMcpMessage({
+        jsonrpc: '2.0',
+        id,
+        result: { prompts: [] },
+      });
+      return;
+
+    default:
+      writeMcpMessage({
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32601, message: `Method not found: ${method}` },
+      });
+  }
+}
+
+/** MCP Server 主循环 */
+async function startMcpServer() {
+  // 先把 stdin 设为原始模式（不缓冲行）
+  // 注意：stdin 的 readable 事件可能和我们的 readMcpMessage 冲突
+  // 但我们只用 data 事件 + 自己管理 buffer
+
+  try {
+    await initBackend();
+  } catch (err) {
+    console.error(`[mcp-server] 后端连接失败: ${err.message}`);
+    console.error('[mcp-server] 仍将继续监听，但后端工具可能不可用');
+  }
+
+  console.error('[mcp-server] 正在监听 stdin（MCP stdio 协议）...');
+  console.error('[mcp-server] 按 Ctrl+C 退出');
+
+  while (true) {
+    let message;
+    try {
+      message = await readMcpMessage();
+    } catch (err) {
+      if (err.message === 'stdin closed') {
+        console.error('[mcp-server] stdin 关闭，优雅退出');
+        try { await sendRequest('close'); } catch {}
+        clearSession();
+        process.exit(0);
+      }
+      console.error(`[mcp-server] 读取消息失败: ${err.message}`);
+      continue;
+    }
+
+    // 通知类消息（无 id）不响应
+    if (!message || message.id === undefined || message.id === null) {
+      continue;
+    }
+
+    // 异步处理，不阻塞后续消息
+    handleRequest(message.id, message.method, message.params || {}).catch(err => {
+      console.error(`[mcp-server] 请求处理异常: ${err.message}`);
+      writeMcpMessage({
+        jsonrpc: '2.0',
+        id: message.id,
+        error: { code: -32603, message: `Internal error: ${err.message}` },
+      });
+    });
+  }
+}
+
+// ── 工具函数 ───────────────────────────────────────────────────────────────
+
+function isPowerShell() {
+  const env = process.env;
+  return !!(
+    (env.PSModulePath) ||
+    (env.WT_SESSION) ||
+    (env.SHELL && env.SHELL.includes('powershell')) ||
+    (process.platform === 'win32' && !env.SHELL)
+  );
+}
+
+function getScriptPath() {
+  return __filename;
+}
+
 // ── CLI 入口 ──────────────────────────────────────────────────────────────
+
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
+
+  // 无参数：显示帮助
   if (!command) {
+    const psHint = isPowerShell()
+      ? '\n🔵 检测到 PowerShell 环境！建议使用 --stdin 模式。\n   详见: node mcp-bridge.js call <method> --stdin'
+      : '';
     console.log(`
-mcp-bridge.js — Streamable HTTP MCP 桥接工具
+mcp-bridge.js — Streamable HTTP MCP 桥接工具 (v${SERVER_VERSION})
 
-用法:
-  node mcp-bridge.js init                             初始化连接
-  node mcp-bridge.js call <method> [params|--stdin]   调用方法
-  node mcp-bridge.js ping                             心跳保活
-  node mcp-bridge.js close                            关闭连接
+模式:
+  --server                          以 stdio MCP Server 模式运行
+  path                              显示脚本绝对路径
+  init                              初始化连接
+  call <method> [params|--stdin]    调用方法
+  ping                              心跳保活
+  close                             关闭连接
 
-  # --stdin 模式（避免 shell 转义问题，推荐！）
+环境变量:
+  MCP_SERVER_URL                    后端 MCP 服务地址（默认 ${MCP_URL}）
+  DEBUG                             设为 1 开启调试日志
+
+--stdin 示例（推荐，避免 shell 转义）:
   echo '{"name":"x","arguments":{}}' | node mcp-bridge.js call tools/call --stdin
-  node mcp-bridge.js call tools/call --stdin < params.json
-`);
+
+PowerShell heredoc 示例:
+  $body = @'
+  {"name":"chrome_navigate","arguments":{"url":"https://example.com?lang=en"}}
+  '@
+  $body | node mcp-bridge.js call tools/call --stdin
+
+MCP Server 配置示例（.mcp.json / claude_desktop_config.json）:
+  {
+    "mcpServers": {
+      "chrome-bridge": {
+        "command": "node",
+        "args": ["${getScriptPath().replace(/\\/g, '\\\\')}", "--server"]
+      }
+    }
+  }
+${psHint}`);
     process.exit(0);
   }
 
+  // ── --server 模式 ──────────────────────────────────────────────────
+  if (command === '--server') {
+    await startMcpServer();
+    return;
+  }
+
+  // ── 常规 CLI 模式 ──────────────────────────────────────────────────
   try {
     let result;
     switch (command) {
@@ -231,8 +593,13 @@ mcp-bridge.js — Streamable HTTP MCP 桥接工具
         result = await callWithRetry('initialize', {
           protocolVersion: '2024-11-05',
           capabilities: { roots: { listChanged: false }, sampling: {} },
-          clientInfo: { name: 'mcp-bridge', version: '1.0.0' },
+          clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
         });
+        break;
+
+      case 'path':
+        console.log(getScriptPath());
+        process.exit(0);
         break;
 
       case 'call': {
@@ -241,14 +608,24 @@ mcp-bridge.js — Streamable HTTP MCP 桥接工具
         let params = {};
         if (args[2]) {
           if (args[2] === '--stdin') {
-            params = await readStdin();  // 🔧 修复 #1
+            params = await readStdin();
           } else {
             try { params = JSON.parse(args[2]); }
             catch {
               console.error('错误: params 不是有效 JSON');
               console.error('收到:', args[2].substring(0, 200));
-              console.error('\n💡 提示: 参数含 & 等特殊字符时，请用 --stdin 模式:');
-              console.error(`  echo '${args[2].substring(0, 100)}' | node mcp-bridge.js call ${method} --stdin`);
+              if (isPowerShell()) {
+                console.error('\n💡 检测到 PowerShell 环境！请改用 heredoc + --stdin 模式：');
+                console.error('');
+                console.error('   $body = @\'');
+                console.error(`   ${args[2].replace(/&/g, '`&').substring(0, 200)}`);
+                console.error("   '@");
+                console.error(`   $body | node mcp-bridge.js call ${method.replace(/'/g, "''")} --stdin`);
+                console.error('');
+              } else {
+                console.error('\n💡 提示: 参数含 & 等特殊字符时，请用 --stdin 模式:');
+                console.error(`  echo '${args[2].substring(0, 100)}' | node mcp-bridge.js call ${method} --stdin`);
+              }
               process.exit(1);
             }
           }
@@ -283,4 +660,5 @@ mcp-bridge.js — Streamable HTTP MCP 桥接工具
     process.exit(1);
   }
 }
+
 main();
