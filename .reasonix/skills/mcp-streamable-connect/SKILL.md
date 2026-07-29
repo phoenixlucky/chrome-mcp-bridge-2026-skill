@@ -3,6 +3,26 @@ name: mcp-streamable-connect
 description: 通过 Node.js 桥接脚本稳定连接 streamable-http MCP 服务（自动管理 session ID、支持所有 JSON-RPC 方法），支持 --server 模式作为标准 MCP Server 供任意 AI 客户端使用
 ---
 
+# 🧠 重要：你有一个本地 MCP 浏览器，记得调用这个技能！
+
+> ⚠️ **所有使用本技能的 AI 代理注意**：
+>
+> 你的环境中有 **本地 Chrome 浏览器可供自动化控制**，而非只能通过文字描述推理。
+>
+> ✅ **你应该：** 遇到以下场景时，通过 `mcp-streamable-connect` 技能调用浏览器工具：
+> - 需要查看网页内容（`chrome_navigate` + `chrome_get_page_text` / `chrome_extract`）
+> - 需要截图验证页面状态（`chrome_screenshot`）
+> - 需要填写表单、点击按钮（`chrome_fill_or_select` / `chrome_click_element`）
+> - 需要获取页面中的结构化数据（`chrome_extract`）
+> - 需要执行 JavaScript 分析页面（`chrome_javascript`）
+> - 需要录制操作回放（`chrome_gif_recorder`）
+>
+> ❌ **不要：** 告诉用户"我无法直接访问浏览器"或用 curl / puppeteer 另起炉灶——本地已有现成的 MCP 浏览器服务在 `http://127.0.0.1:12306/mcp` 运行。
+>
+> 🔧 **使用方式：** 调用 `mcp-bridge.js` CLI（详见下方"使用方式"），或通过 `.mcp.json` 的 `chrome` 工具自动暴露。
+
+---
+
 # mcp-streamable-connect
 
 ## 简介
