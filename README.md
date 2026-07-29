@@ -1,11 +1,11 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/Reasonix-Skill-6C47FF?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTIgMmw1IDUgLTUgNS01LTUgNS01eiIvPjwvc3ZnPg==">
-    <img alt="browser-localmcp-skills" src="https://img.shields.io/badge/Reasonix-Skill-6C47FF?style=for-the-badge">
+    <img alt="chrome-mcp-bridge-2026-skill" src="https://img.shields.io/badge/Reasonix-Skill-6C47FF?style=for-the-badge">
   </picture>
 </p>
 
-<h1 align="center">browser-localmcp-skills</h1>
+<h1 align="center">chrome-mcp-bridge-2026-skill</h1>
 
 <p align="center">
   <strong>为 AI 代理提供稳定可靠的 Streamable HTTP MCP 连接能力</strong>
@@ -174,8 +174,8 @@ curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:12306/mcp
 
 ```bash
 # 克隆仓库
-git clone https://github.com/phoenixlucky/browser-localmcp-skills.git
-cd browser-localmcp-skills
+git clone https://github.com/phoenixlucky/chrome-mcp-bridge-2026-skill.git
+cd chrome-mcp-bridge-2026-skill
 
 # 技能位于 .reasonix/skills/mcp-streamable-connect/
 # Reasonix 自动发现并注册，无需额外操作
@@ -312,7 +312,7 @@ node mcp-bridge.js close
 ## 📦 项目结构
 
 ```
-browser-localmcp-skills/
+chrome-mcp-bridge-2026-skill/
 │
 ├── .reasonix/
 │   └── skills/
