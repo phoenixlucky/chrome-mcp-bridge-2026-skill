@@ -226,20 +226,92 @@ $body | node mcp-bridge.js call tools/call --stdin
 
 ---
 
+## 🛠️ 能力矩阵 — 8 大类 30+ 浏览器自动化工具
+
+对接 `mcp-chrome-2026` 服务，覆盖以下工具分类：
+
+### 🖥️ 浏览器管理 (7)
+| 工具 | 说明 |
+|:---|:---|
+| `get_windows_and_tabs` | 列出所有窗口/标签页 |
+| `chrome_navigate` | 导航到 URL（支持新窗口/视口设置） |
+| `chrome_close_tabs` | 关闭指定标签页或窗口 |
+| `chrome_switch_tab` | 切换到指定标签页 |
+| `chrome_go_back_or_forward` | 浏览器前进/后退 |
+| `chrome_javascript` | 向页面注入 JS 脚本 |
+| `chrome_send_command_to_inject_script` | 向注入脚本发送命令 |
+
+### 📸 截图和视觉 (1)
+| 工具 | 说明 |
+|:---|:---|
+| `chrome_screenshot` | 全页/元素/自定义视口截图，支持 base64 |
+
+### 🌐 网络监控 (6)
+| 工具 | 说明 |
+|:---|:---|
+| `chrome_network_capture_start` | webRequest API 开始捕获 |
+| `chrome_network_capture_stop` | 停止捕获并返回数据 |
+| `chrome_network_debugger_start` | CDP Debugger 捕获（含响应体） |
+| `chrome_network_debugger_stop` | 停止调试器捕获 |
+| `chrome_network_request` | 发送自定义 HTTP 请求 |
+| `chrome_block_images` | 通过 CDP 阻止图片加载（省带宽） |
+
+### 📝 内容分析 (4)
+| 工具 | 说明 |
+|:---|:---|
+| `search_tabs_content` | AI 语义搜索所有标签页内容 |
+| `chrome_get_web_content` | 提取页面 HTML 或文本 |
+| `chrome_get_interactive_elements` | 查找可点击/交互元素 |
+| `chrome_console` | 捕获浏览器控制台输出 |
+
+### 🖱️ 交互操作 (3)
+| 工具 | 说明 |
+|:---|:---|
+| `chrome_click_element` | CSS 选择器点击元素 |
+| `chrome_fill_or_select` | 填充表单或选择选项 |
+| `chrome_keyboard` | 模拟键盘输入和快捷键 |
+
+### 📑 数据管理 (4)
+| 工具 | 说明 |
+|:---|:---|
+| `chrome_history` | 搜索浏览器历史记录 |
+| `chrome_bookmark_search` | 搜索书签 |
+| `chrome_bookmark_add` | 添加书签（支持文件夹） |
+| `chrome_bookmark_delete` | 删除书签 |
+
+### 🕸️ 抓取与提取 (8)
+| 工具 | 说明 |
+|:---|:---|
+| `chrome_get_tab_url` | 快速获取标签页 URL/标题 |
+| `chrome_scroll` | 滚动页面/容器（4 种模式+懒加载） |
+| `chrome_get_scroll_state` | 获取滚动状态 |
+| `chrome_wait` | 等待元素/JS 条件（6 种模式） |
+| `chrome_extract` | CSS 选择器提取结构化数据（8 种类型） |
+| `chrome_get_page_text` | Readability 提取文章正文 |
+| `chrome_click_and_wait` | 点击 + 等待组合操作 |
+| 🆕 `chrome_spa_fetch` | **SPA 专用**：导航+渲染+滚动+提取一步完成 |
+
 ## 已知限制
 
-### SPA 动态页面内容提取不全
+### SPA 动态页面内容提取
 
-`chrome_get_page_text` 使用 Readability 提取，不适合 X/Twitter 等 SPA。改用：
+`chrome_get_page_text` 使用 Readability 提取，不适合 X/Twitter、Reddit 等 JS 重型 SPA 站点。现在有专用的 **`chrome_spa_fetch`** 工具（v1.6.3 新增）：
+
+```powershell
+$body = @'
+{"name":"chrome_spa_fetch","arguments":{"url":"https://x.com/elonmusk","maxScrolls":10,"scrollDelay":2500,"waitForSelector":"[data-testid=\"tweet\"]"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+```
+
+也可回退使用 `chrome_extract` + `chrome_get_page_text` / `chrome_screenshot`：
 
 ```powershell
 $body = @'
 {"name":"chrome_extract","arguments":{"selector":"article","fields":[{"name":"text","selector":"p","type":"text"}],"limit":50}}
 '@
-$body | node $scriptPath call tools/call --stdin
+$body | node mcp-bridge.js call tools/call --stdin
 ```
-
-或 `chrome_get_web_content` / `chrome_screenshot`。
 
 ### 全页截图失败
 
@@ -247,7 +319,23 @@ $body | node $scriptPath call tools/call --stdin
 
 ### 滚动懒加载
 
-某些 SPA 使用虚拟列表，滚动高度增加但不加载新内容。结合多次小步滚动 + `chrome_extract` 分段提取。
+某些 SPA 使用虚拟列表，滚动高度增加但不加载新内容。推荐使用 `chrome_get_scroll_state` 检测滚动状态，配合 `chrome_scroll` 多次小步滚动 + `chrome_extract` 分段提取：
+
+```powershell
+# 1. 获取当前滚动状态
+$body = '{}'
+$state = $body | node mcp-bridge.js call tools/call --stdin
+
+# 2. 小步滚动触发懒加载
+$scrollBody = @'
+{"name":"chrome_scroll","arguments":{"toBottom":true,"lazyLoad":true,"lazyLoadStep":400,"lazyLoadWaitMs":800}}
+'@
+$result = $scrollBody | node mcp-bridge.js call tools/call --stdin
+
+# 3. 反复执行直到 atBottom: true
+```
+
+或对 X/Twitter、Reddit 等使用 `chrome_spa_fetch` 一站式完成。
 
 ---
 
