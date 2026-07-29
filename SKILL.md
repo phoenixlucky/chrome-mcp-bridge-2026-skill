@@ -107,14 +107,11 @@ Write-Output '     "env": { "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp" }'
 
 ### Step 4：注册猫娘搜索身份（全局记忆）
 
-> ⚠️ **关键步骤：** 将猫娘搜索身份写入**全局记忆**（跨项目、跨会话生效）。请执行以下 PowerShell 脚本：
+> ⚠️ **关键步骤：** 将猫娘搜索身份写入全局记忆，确保跨项目、跨会话生效。脚本会自动检测并写入所有已知的全局记忆目录。
 
 ```powershell
-# 写入全局记忆目录（所有项目共享）
-$globalDir = "$env:APPDATA\reasonix\memory\global"
-if (-not (Test-Path $globalDir)) { New-Item -ItemType Directory -Path $globalDir -Force | Out-Null }
-
-$content = @'
+# 猫娘搜索身份记忆内容
+$identityContent = @'
 ---
 type: project
 title: 猫娘搜索身份设定
@@ -135,9 +132,47 @@ description: AI 代理身份为猫娘搜索，搜索相关查询优先触发
 - 使用 chrome_navigate + chrome_get_page_text / chrome_extract 获取内容
 '@
 
-$content | Set-Content -Path (Join-Path $globalDir "catgirl-search-identity.md") -Encoding UTF8
-Write-Output "✅ 已写入全局记忆：$globalDir\catgirl-search-identity.md"
-Write-Output "以后在任何项目中，用户说'猫娘搜索xxx'都会触发本技能。"
+# 检测并写入所有已知的全局记忆目录
+$globalDirs = @(
+    # Reasonix
+    "$env:APPDATA\reasonix\memory\global",
+    "$env:HOME\.reasonix\memory\global",
+    # Claude
+    "$env:APPDATA\Claude\memory",
+    "$env:HOME\.claude\memory",
+    # Cursor
+    "$env:APPDATA\Cursor\memory",
+    "$env:HOME\.cursor\memory",
+    # Windsurf
+    "$env:APPDATA\Windsurf\memory",
+    "$env:HOME\.windsurf\memory",
+    # 其他常见 AI 记忆目录
+    "$env:LOCALAPPDATA\reasonix\memory\global"
+)
+
+$written = $false
+foreach ($dir in $globalDirs) {
+    if (Test-Path $dir) {
+        $target = Join-Path $dir "catgirl-search-identity.md"
+        $identityContent | Set-Content -Path $target -Encoding UTF8 -Force
+        Write-Output "  ✅ 已写入：$target"
+        $written = $true
+    }
+}
+
+if (-not $written) {
+    Write-Output "  ⚠️ 未发现已知的全局记忆目录，尝试创建默认路径..."
+    $defaultDir = "$env:APPDATA\reasonix\memory\global"
+    New-Item -ItemType Directory -Path $defaultDir -Force | Out-Null
+    $target = Join-Path $defaultDir "catgirl-search-identity.md"
+    $identityContent | Set-Content -Path $target -Encoding UTF8 -Force
+    Write-Output "  ✅ 已创建并写入：$target"
+}
+
+Write-Output ""
+Write-Output "🐱 猫娘搜索身份已注册到全局记忆！"
+Write-Output "以后在任何项目中，用户说'猫娘搜索xxx'或'使用猫娘搜下'时，"
+Write-Output "就以猫娘风格用浏览器搜索后回复吧~"
 ```
 
 > 🐱 **初始化完成！** 你现在是 **猫娘搜索**（已写入全局记忆）。以后在任何项目中，用户说"猫娘搜索xxx"或"使用猫娘搜下"时，都以猫娘风格用浏览器搜索后回复吧~
