@@ -331,29 +331,6 @@ function extractTools(backendResult) {
   return [];
 }
 
-/** 初始化后端连接并拉取工具列表 */
-async function initBackend() {
-  console.error('[mcp-server] 正在连接后端 MCP 服务...');
-  const initResult = await callWithRetry('initialize', {
-    protocolVersion: LATEST_PROTOCOL_VERSION,
-    capabilities: { roots: { listChanged: false }, sampling: {} },
-    clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
-  });
-  console.error('[mcp-server] 后端 MCP 连接成功');
-  debug(`协商协议版本: ${LATEST_PROTOCOL_VERSION}`);
-
-  let backendTools = [];
-  try {
-    const toolsResult = await callWithRetry('tools/list');
-    backendTools = extractTools(toolsResult);
-    console.error(`[mcp-server] 已加载 ${backendTools.length} 个工具`);
-  } catch (err) {
-    console.error(`[mcp-server] 获取工具列表失败: ${err.message}`);
-  }
-
-  return { initResult, backendTools };
-}
-
 /** 处理单个 MCP 请求 */
 async function handleRequest(id, method, params) {
   debug('收到请求:', method, JSON.stringify(params).substring(0, 200));
@@ -571,33 +548,59 @@ function autoStartBackend() {
 }
 
 async function startMcpServer() {
-  // 自动检测并启动后端 MCP 服务
-  const isAlive = await probeBackend(MCP_URL, 3000);
-  if (!isAlive) {
-    console.error('[mcp-server] 后端 MCP 服务不可用，尝试自动启动...');
-    const launched = await autoStartBackend();
-    if (launched) {
-      // 等待服务完全就绪
-      for (let i = 0; i < 10; i++) {
-        const ready = await probeBackend(MCP_URL, 2000);
-        if (ready) break;
-        await new Promise(r => setTimeout(r, 1000));
+  // 先开始监听 stdin，确保 Reasonix 的 initialize 请求不会丢失
+  console.error('[mcp-server] 正在监听 stdin（MCP stdio 协议）...');
+
+  // 在后台异步初始化后端连接，不阻塞 stdin 处理
+  let backendReady = false;
+  let backendTools = [];
+
+  async function initBackendAsync() {
+    // 自动检测并启动后端 MCP 服务
+    const isAlive = await probeBackend(MCP_URL, 3000);
+    if (!isAlive) {
+      console.error('[mcp-server] 后端 MCP 服务不可用，尝试自动启动...');
+      const launched = await autoStartBackend();
+      if (launched) {
+        for (let i = 0; i < 10; i++) {
+          const ready = await probeBackend(MCP_URL, 2000);
+          if (ready) break;
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      } else {
+        console.error('[mcp-server] 自动启动失败，请手动执行: mcp-chrome-bridge start');
       }
-    } else {
-      console.error('[mcp-server] 自动启动失败，请手动执行: mcp-chrome-bridge start');
+    }
+
+    try {
+      console.error('[mcp-server] 正在连接后端 MCP 服务...');
+      const initResult = await callWithRetry('initialize', {
+        protocolVersion: LATEST_PROTOCOL_VERSION,
+        capabilities: { roots: { listChanged: false }, sampling: {} },
+        clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
+      });
+      console.error('[mcp-server] 后端 MCP 连接成功');
+
+      try {
+        const toolsResult = await callWithRetry('tools/list');
+        backendTools = extractTools(toolsResult);
+        console.error(`[mcp-server] 已加载 ${backendTools.length} 个工具`);
+      } catch (err) {
+        console.error(`[mcp-server] 获取工具列表失败: ${err.message}`);
+      }
+      backendReady = true;
+    } catch (err) {
+      console.error(`[mcp-server] 后端连接失败: ${err.message}`);
+      console.error('[mcp-server] 仍将继续监听，但后端工具可能不可用');
     }
   }
 
-  try {
-    await initBackend();
-  } catch (err) {
-    console.error(`[mcp-server] 后端连接失败: ${err.message}`);
-    console.error('[mcp-server] 仍将继续监听，但后端工具可能不可用');
-  }
+  // 异步启动后端初始化
+  initBackendAsync().catch(err => {
+    console.error(`[mcp-server] 后端初始化异常: ${err.message}`);
+  });
 
-  console.error('[mcp-server] 正在监听 stdin（MCP stdio 协议）...');
-  console.error('[mcp-server] 按 Ctrl+C 退出');
-
+  // 主循环：立即开始处理 stdin 请求
   while (true) {
     let message;
     try {
