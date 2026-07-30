@@ -485,19 +485,24 @@ async function handleRequest(id, method, params) {
   }
 }
 
-/** 快速探测后端 MCP 服务是否存活（短超时） */
+/** 快速探测后端 MCP 服务是否存活（短超时）
+ *  用 initialize 请求探测，因为 Streamable HTTP 在初始化前不接受其他方法 */
 async function probeBackend(url, timeoutMs = 3000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'initialize',
+        params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'probe', version: '1.0' } },
+      }),
       signal: controller.signal,
     });
     clearTimeout(timer);
-    return res.ok || res.status === 200;
+    // 200=成功, 400=已有活跃session但服务在运行, 都表示后端存活
+    return res.status === 200 || res.status === 400;
   } catch {
     clearTimeout(timer);
     return false;
