@@ -23,6 +23,7 @@
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const net = require('net');
 const { spawn } = require('child_process');
 
 // ── 配置 ──────────────────────────────────────────────────────────────────
@@ -486,25 +487,21 @@ async function handleRequest(id, method, params) {
 }
 
 /** 快速探测后端 MCP 服务是否存活（短超时）
- *  用 initialize 请求探测，因为 Streamable HTTP 在初始化前不接受其他方法 */
+ *  用 TCP 连接检测端口是否开放，不发送任何 MCP 请求，避免干扰 session */
 async function probeBackend(url, timeoutMs = 3000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', id: 1, method: 'initialize',
-        params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'probe', version: '1.0' } },
-      }),
-      signal: controller.signal,
+    const urlObj = new URL(url);
+    const port = parseInt(urlObj.port, 10) || 80;
+    const host = urlObj.hostname;
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      socket.setTimeout(timeoutMs);
+      socket.on('connect', () => { socket.destroy(); resolve(true); });
+      socket.on('timeout', () => { socket.destroy(); resolve(false); });
+      socket.on('error', () => { socket.destroy(); resolve(false); });
+      socket.connect(port, host);
     });
-    clearTimeout(timer);
-    // 200=成功, 400=已有活跃session但服务在运行, 都表示后端存活
-    return res.status === 200 || res.status === 400;
   } catch {
-    clearTimeout(timer);
     return false;
   }
 }
