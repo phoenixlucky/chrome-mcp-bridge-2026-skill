@@ -271,13 +271,16 @@ $body | node mcp-bridge.js call tools/call --stdin
 | `chrome_fill_or_select` | 填充表单或选择选项 |
 | `chrome_keyboard` | 模拟键盘输入和快捷键 |
 
-### 📑 数据管理 (4)
+### 📑 数据管理 (7)
 | 工具 | 说明 |
 |:---|:---|
 | `chrome_history` | 搜索浏览器历史记录 |
 | `chrome_bookmark_search` | 搜索书签 |
 | `chrome_bookmark_add` | 添加书签（支持文件夹） |
 | `chrome_bookmark_delete` | 删除书签 |
+| 🆕 `chrome_cookie_get` | **获取 Cookie** — 按 URL/域名/名称/存储分区筛选 |
+| 🆕 `chrome_cookie_set` | **设置 Cookie** — 支持 HttpOnly/Secure/SameSite/过期时间 |
+| 🆕 `chrome_cookie_delete` | **删除 Cookie** — 按 URL+名称精准删除 |
 
 ### 🕸️ 抓取与提取 (8)
 | 工具 | 说明 |
@@ -309,6 +312,28 @@ $body | node mcp-bridge.js call tools/call --stdin
 ```powershell
 $body = @'
 {"name":"chrome_extract","arguments":{"selector":"article","fields":[{"name":"text","selector":"p","type":"text"}],"limit":50}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+```
+
+### Cookie 管理使用示例
+
+```powershell
+# 1. 获取某个域名的所有 Cookie
+$body = @'
+{"name":"chrome_cookie_get","arguments":{"url":"https://example.com"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+
+# 2. 设置 Cookie（会话 Cookie）
+$body = @'
+{"name":"chrome_cookie_set","arguments":{"url":"https://example.com","name":"session_id","value":"abc123","domain":"example.com","secure":true,"sameSite":"lax"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+
+# 3. 删除 Cookie
+$body = @'
+{"name":"chrome_cookie_delete","arguments":{"url":"https://example.com","name":"session_id"}}
 '@
 $body | node mcp-bridge.js call tools/call --stdin
 ```

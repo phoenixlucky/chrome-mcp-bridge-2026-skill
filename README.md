@@ -93,19 +93,18 @@
 
 ## 🔧 能力矩阵
 
-对接 [mcp-chrome-2026](https://github.com/phoenixlucky/mcp-chrome-2026) 服务，覆盖 **9 大类 30+ 浏览器自动化工具**：
+对接 [mcp-chrome-2026](https://github.com/phoenixlucky/mcp-chrome-2026) 服务，覆盖 **8 大类 35+ 浏览器自动化工具**（v1.6.4）：
 
 | 分类 | 核心工具 | 能力 |
 |:---:|:---|:---|
-| <b>📊 浏览器管理</b> | `chrome_navigate` · `chrome_close_tabs` · `chrome_switch_tab` | 页面导航、标签页管理、历史控制 |
-| <b>📸 截图视觉</b> | `chrome_screenshot` · `chrome_computer` · `chrome_gif_recorder` | 全页/元素截图、坐标鼠标键盘交互、GIF 录制 |
+| <b>📊 浏览器管理</b> | `chrome_navigate` · `chrome_close_tabs` · `chrome_switch_tab` · `chrome_go_back_or_forward` | 页面导航、标签页管理、历史控制 |
+| <b>📸 截图视觉</b> | `chrome_screenshot` | 全页/元素截图、自定义视口、base64 输出 |
 | <b>🌐 网络监控</b> | `chrome_network_capture` · `chrome_network_request` · `chrome_block_images` | 请求捕获、自定义请求、资源拦截 |
-| <b>🔍 内容分析</b> | `chrome_get_page_text` · `chrome_extract` · `chrome_read_page` | Readability 正文解析、CSS 选择器提取、无障碍树分析 |
-| <b>🎯 交互操作</b> | `chrome_click_element` · `chrome_fill_or_select` · `chrome_keyboard` · `chrome_upload_file` | 点击、表单填写、键盘快捷键、文件上传 |
+| <b>🔍 内容分析</b> | `search_tabs_content` · `chrome_get_page_text` · `chrome_extract` · `chrome_get_interactive_elements` | 语义搜索、Readability 正文解析、结构化提取、交互元素检测 |
+| <b>🎯 交互操作</b> | `chrome_click_element` · `chrome_fill_or_select` · `chrome_keyboard` | 点击、表单填写、键盘快捷键 |
 | <b>💻 脚本执行</b> | `chrome_javascript` · `chrome_console` | 页面 JS 执行、控制台日志捕获 |
-| <b>📚 数据管理</b> | `chrome_history` · `chrome_bookmark_*` | 历史记录检索、书签 CRUD |
-| <b>🕸️ 抓取提取</b> | `chrome_scroll` · `chrome_wait` · `chrome_click_and_wait` | 滚动控制、等待元素、组合操作 |
-| <b>⚡ 性能分析</b> | `performance_start_trace` · `performance_analyze_insight` | 页面 Trace 录制、DevTools 性能分析 |
+| <b>📚 数据管理</b> | `chrome_history` · `chrome_bookmark_*` · 🆕 `chrome_cookie_*` | 历史记录检索、书签 CRUD、**Cookie 管理（v1.6.4 新增）** |
+| <b>🕸️ 抓取提取</b> | `chrome_scroll` · `chrome_wait` · `chrome_extract` · `chrome_get_page_text` · `chrome_click_and_wait` · 🆕 `chrome_spa_fetch` | 滚动控制、等待元素、结构化提取、文章解析、组合操作、**SPA 专用提取** |
 
 > 💡 执行 `node mcp-bridge.js call tools/list` 可获取实时工具列表及参数签名。详细 AI 操作指南请参阅 [SKILL.md](./SKILL.md)。
 
