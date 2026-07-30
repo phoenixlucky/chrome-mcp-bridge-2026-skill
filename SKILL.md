@@ -36,6 +36,15 @@ description: 通过 Node.js 桥接脚本稳定连接 streamable-http MCP 服务�
 
 ---
 
+## 📦 安装（首次使用执行）
+
+> 一键安装：以管理员身份运行以下脚本，自动完成全部配置
+>
+> ```powershell
+> .\install.ps1
+> ```
+> 脚本会自动：安装 npm 包 → 同步文件到全局 → 注册 MCP 插件 → 启动后端服务
+
 ## 🔄 自动配置（首次使用执行）
 
 > AI 代理：首次使用本 skill 时，执行以下 setup。之后可跳过。
