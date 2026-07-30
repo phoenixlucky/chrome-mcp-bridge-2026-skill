@@ -23,6 +23,7 @@
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
 // ── 配置 ──────────────────────────────────────────────────────────────────
 
@@ -484,11 +485,106 @@ async function handleRequest(id, method, params) {
   }
 }
 
-/** MCP Server 主循环 */
+/** 快速探测后端 MCP 服务是否存活（短超时） */
+async function probeBackend(url, timeoutMs = 3000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return res.ok || res.status === 200;
+  } catch {
+    clearTimeout(timer);
+    return false;
+  }
+}
+
+/** 自动启动后端 Chrome MCP 服务（mcp-chrome-bridge start） */
+function autoStartBackend() {
+  return new Promise((resolve, reject) => {
+    console.error('[mcp-server] 后端 MCP 服务未运行，正在自动启动...');
+
+    const child = spawn('mcp-chrome-bridge', ['start', '--port', '12306'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: false,
+      shell: process.platform === 'win32',
+    });
+
+    let started = false;
+    const startupTimeout = setTimeout(() => {
+      if (!started) {
+        started = true;
+        console.error('[mcp-server] 警告: 后端服务启动超时（15s），将继续尝试连接');
+        resolve(false);
+      }
+    }, 15000);
+
+    child.stdout.on('data', (data) => {
+      const text = data.toString();
+      console.error('[后端]', text.trim());
+      // 服务启动后会打印特定信息
+      if (!started && (text.includes('listening') || text.includes('started') || text.includes('Server') || text.includes('12306'))) {
+        started = true;
+        clearTimeout(startupTimeout);
+        console.error('[mcp-server] 后端服务已启动');
+        // 给服务一点时间完全就绪
+        setTimeout(() => resolve(true), 1000);
+      }
+    });
+
+    child.stderr.on('data', (data) => {
+      const text = data.toString();
+      console.error('[后端]', text.trim());
+      if (!started && (text.includes('listening') || text.includes('started') || text.includes('Server') || text.includes('12306'))) {
+        started = true;
+        clearTimeout(startupTimeout);
+        console.error('[mcp-server] 后端服务已启动');
+        setTimeout(() => resolve(true), 1000);
+      }
+    });
+
+    child.on('error', (err) => {
+      if (!started) {
+        started = true;
+        clearTimeout(startupTimeout);
+        console.error(`[mcp-server] 启动后端服务失败: ${err.message}`);
+        resolve(false);
+      }
+    });
+
+    child.on('exit', (code) => {
+      if (!started) {
+        started = true;
+        clearTimeout(startupTimeout);
+        console.error(`[mcp-server] 后端服务异常退出 (code: ${code})`);
+        resolve(false);
+      }
+    });
+  });
+}
+
 async function startMcpServer() {
-  // 先把 stdin 设为原始模式（不缓冲行）
-  // 注意：stdin 的 readable 事件可能和我们的 readMcpMessage 冲突
-  // 但我们只用 data 事件 + 自己管理 buffer
+  // 自动检测并启动后端 MCP 服务
+  const isAlive = await probeBackend(MCP_URL, 3000);
+  if (!isAlive) {
+    console.error('[mcp-server] 后端 MCP 服务不可用，尝试自动启动...');
+    const launched = await autoStartBackend();
+    if (launched) {
+      // 等待服务完全就绪
+      for (let i = 0; i < 10; i++) {
+        const ready = await probeBackend(MCP_URL, 2000);
+        if (ready) break;
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    } else {
+      console.error('[mcp-server] 自动启动失败，请手动执行: mcp-chrome-bridge start');
+    }
+  }
 
   try {
     await initBackend();
