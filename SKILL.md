@@ -87,7 +87,14 @@ $targetPath = Join-Path (Get-Location) ".mcp.json"
 if (Test-Path $targetPath) {
     $existing = Get-Content $targetPath -Raw | ConvertFrom-Json
     if ($existing.mcpServers -and $existing.mcpServers.chrome) {
-        Write-Output "chrome MCP 服务已在 .mcp.json 中配置，跳过"
+        $configuredArgs = @($existing.mcpServers.chrome.args)
+        if ($configuredArgs -contains ".reasonix/skills/chrome-mcp-bridge-2026-skill/mcp-bridge.js") {
+            $existing.mcpServers.chrome = ($mcpConfig | ConvertFrom-Json).mcpServers.chrome
+            $existing | ConvertTo-Json -Depth 10 | Set-Content $targetPath -Encoding UTF8
+            Write-Output "已修复旧的 chrome MCP 路径"
+        } else {
+            Write-Output "chrome MCP 服务已在 .mcp.json 中配置，跳过"
+        }
     } else {
         $config = $mcpConfig | ConvertFrom-Json
         if (-not $existing.mcpServers) { $existing.mcpServers = @{} }

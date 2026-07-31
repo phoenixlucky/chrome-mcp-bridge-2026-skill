@@ -1,9 +1,4 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/chrome--mcp--bridge-2026--skill-6C47FF?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTIgMmw1IDUgLTUgNS01LTUgNS01eiIvPjwvc3ZnPg==">
-    <img alt="chrome-mcp-bridge-2026-skill" src="https://img.shields.io/badge/chrome--mcp--bridge-2026--skill-6C47FF?style=for-the-badge">
-  </picture>
-</p>
+<h1 align="center">chrome-mcp-bridge-2026-skill</h1>
 
 <p align="center">
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=white" alt="Node.js"></a>
@@ -169,6 +164,8 @@ cd chrome-mcp-bridge-2026-skill
 ```
 
 启动客户端后，`chrome_*` 工具自动暴露。
+
+> 若报 `Cannot find module ...\.reasonix\skills\chrome-mcp-bridge-2026-skill\mcp-bridge.js`，该配置指向了已废弃的相对路径。将 `args` 中的第一个值替换为本机 `mcp-bridge.js` 的绝对路径；在本仓库根目录运行 `node mcp-bridge.js path` 可取得该路径。
 
 #### 🅱️ CLI 直接调用
 

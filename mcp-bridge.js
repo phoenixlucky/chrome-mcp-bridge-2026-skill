@@ -32,9 +32,9 @@ const MAX_RETRIES = 2;
 const STDIN_TIMEOUT_MS = 3000;
 const SESSION_FILE = path.join(os.tmpdir(), 'mcp-bridge-session.json');
 const SERVER_NAME = 'mcp-bridge-server';
-const SERVER_VERSION = '3.1.0';
+const SERVER_VERSION = '3.1.1';
 const BACKEND_CLIENT_NAME = 'mcp-bridge-backend';
-const BACKEND_CLIENT_VERSION = '3.1.0';
+const BACKEND_CLIENT_VERSION = '3.1.1';
 
 // MCP 协议版本协商 — 与服务端 SDK 列表保持一致
 const SUPPORTED_PROTOCOL_VERSIONS = [
@@ -44,6 +44,7 @@ const SUPPORTED_PROTOCOL_VERSIONS = [
 const LATEST_PROTOCOL_VERSION = '2025-11-25';
 /** 本次会话协商确定的协议版本（在 initialize 时确定） */
 let negotiatedProtocolVersion = LATEST_PROTOCOL_VERSION;
+let requestSequence = 0;
 
 function debug(...args) {
   if (process.env.DEBUG) console.error('[桥接-debug]', ...args);
@@ -77,14 +78,24 @@ function clearSession() {
 
 // ── JSON-RPC 错误检测 ─────────────────────────────────────────────────────
 
-function isJsonRpcError(json) {
-  return json && json.error && (json.error.code || json.error.message);
-}
-
 function isSessionError(json) {
   if (!json || !json.error) return false;
-  const msg = (json.error.message || '').toLowerCase();
+  const msg = (typeof json.error === 'string' ? json.error : json.error.message || '').toLowerCase();
   return msg.includes('session') || msg.includes('invalid mcp');
+}
+
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object, key);
+}
+
+function unwrapJsonRpcResponse(json) {
+  if (json && typeof json === 'object' && hasOwn(json, 'error')) {
+    const err = new Error(typeof json.error === 'string' ? json.error : json.error.message || '未知错误');
+    if (typeof json.error === 'object') err.jsonRpcError = json.error;
+    err.isSessionError = isSessionError(json);
+    throw err;
+  }
+  return json && typeof json === 'object' && hasOwn(json, 'result') ? json.result : json;
 }
 
 // ── SSE 解析 ──────────────────────────────────────────────────────────────
@@ -120,7 +131,7 @@ async function sendRequest(method, params = {}) {
   const isNotification = method === 'close' || method === 'notifications/**';
   const body = isNotification
     ? { jsonrpc: '2.0', method, params }
-    : { jsonrpc: '2.0', id: Date.now(), method, params };
+    : { jsonrpc: '2.0', id: `${Date.now()}-${++requestSequence}`, method, params };
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -147,28 +158,18 @@ async function sendRequest(method, params = {}) {
   if (contentType.includes('text/event-stream')) {
     const rawText = await response.text();
     const events = parseSSEStream(rawText);
-    for (const evt of events) {
-      if (evt.event === 'message' && evt.data) {
-        if (isJsonRpcError(evt.data)) {
-          const err = new Error(evt.data.error.message || '未知错误');
-          err.jsonRpcError = evt.data.error;
-          err.isSessionError = isSessionError(evt.data);
-          throw err;
-        }
-        return evt.data;
-      }
-    }
-    if (events.length > 0 && events[0].data !== undefined) return events[0].data;
-    return { _sseEvents: events };
+    const responseEvent = events.find(evt => evt.data && typeof evt.data === 'object'
+      && evt.data.id === body.id && (hasOwn(evt.data, 'result') || hasOwn(evt.data, 'error')));
+    const errorEvent = events.find(evt => evt.data && typeof evt.data === 'object' && hasOwn(evt.data, 'error'));
+    if (responseEvent) return unwrapJsonRpcResponse(responseEvent.data);
+    if (errorEvent) return unwrapJsonRpcResponse(errorEvent.data);
+    throw new Error(`MCP SSE 响应缺少请求 ${body.id} 的 JSON-RPC 结果`);
   } else {
     const json = await response.json();
-    if (isJsonRpcError(json)) {
-      const err = new Error(json.error.message || '未知错误');
-      err.jsonRpcError = json.error;
-      err.isSessionError = isSessionError(json);
-      throw err;
+    if (!json || typeof json !== 'object' || (!hasOwn(json, 'result') && !hasOwn(json, 'error'))) {
+      throw new Error('MCP HTTP 响应不是有效的 JSON-RPC 结果');
     }
-    return json;
+    return unwrapJsonRpcResponse(json);
   }
 }
 
@@ -654,10 +655,6 @@ ${psHint}`);
           }
         }
         result = await callWithRetry(method, params);
-        if (method === 'tools/call' && result && result._sseEvents) {
-          const msgEvent = result._sseEvents.find(e => e.event === 'message' && e.data?.result);
-          if (msgEvent) result = msgEvent.data;
-        }
         break;
       }
 
