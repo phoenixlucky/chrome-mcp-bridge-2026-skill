@@ -128,7 +128,7 @@ async function sendRequest(method, params = {}) {
     'Content-Type': 'application/json',
     'Accept': 'text/event-stream, application/json',
   };
-  if (sessionId) headers['Mcp-Session-Id'] = sessionId;
+  if (sessionId && method !== 'initialize') headers['Mcp-Session-Id'] = sessionId;
 
   const isNotification = method === 'close' || method === 'notifications/**';
   const body = isNotification
@@ -242,78 +242,66 @@ function readStdin() {
 // ── MCP Server 模式（--server）────────────────────────────────────────────
 
 /**
+ * stdin 持久输入缓冲：常驻监听 data 事件，把收到的字节累积到缓冲区。
+ * 这样多条 MCP 消息即使合并进同一个 chunk 也不会丢失（原一次性 listener 实现会丢）。
+ */
+let mcpInputBuffer = Buffer.alloc(0);
+let mcpInputWaiters = [];
+let mcpInputEnded = false;
+
+process.stdin.on('data', chunk => {
+  mcpInputBuffer = Buffer.concat([mcpInputBuffer, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
+  const waiter = mcpInputWaiters.shift();
+  if (waiter) waiter();
+});
+process.stdin.on('end', () => {
+  mcpInputEnded = true;
+  const waiter = mcpInputWaiters.shift();
+  if (waiter) waiter();
+});
+process.stdin.on('error', () => {
+  mcpInputEnded = true;
+  const waiter = mcpInputWaiters.shift();
+  if (waiter) waiter();
+});
+
+/**
  * 从 stdin 读取一个完整的 JSON-RPC 消息（Content-Length 协议）
  *
  * MCP stdio 传输协议格式：
  *   Content-Length: N\r\n
  *   \r\n
  *   {"jsonrpc":"2.0","id":1,...}   ← 恰好 N 字节
+ *
+ * 解析是增量式的：先从已缓冲数据尝试解析一条；数据不足则等待新 chunk。
  */
-function readMcpMessage() {
-  return new Promise((resolve, reject) => {
-    let headerBuffer = '';
-    let contentLength = -1;
-    let bodyBuffer = null;
-
-    function onData(chunk) {
-      const str = chunk.toString();
-      if (contentLength === -1) {
-        headerBuffer += str;
-        const headerEnd = headerBuffer.indexOf('\r\n\r\n');
-        if (headerEnd !== -1) {
-          const header = headerBuffer.substring(0, headerEnd);
-          const match = header.match(/Content-Length:\s*(\d+)/i);
-          if (!match) {
-            cleanup();
-            return reject(new Error('MCP 消息缺少 Content-Length 头'));
-          }
-          contentLength = parseInt(match[1], 10);
-          // 头之后的剩余字节作为 body 开头
-          const remaining = Buffer.from(headerBuffer.substring(headerEnd + 4), 'utf-8');
-          bodyBuffer = Buffer.from(remaining);
-          if (bodyBuffer.length >= contentLength) {
-            cleanup();
-            try {
-              resolve(JSON.parse(bodyBuffer.toString('utf-8', 0, contentLength)));
-            } catch (e) {
-              reject(new Error(`JSON 解析失败: ${e.message}`));
-            }
-          }
-        }
-      } else {
-        bodyBuffer = Buffer.concat([bodyBuffer, Buffer.from(str, 'utf-8')]);
-        if (bodyBuffer.length >= contentLength) {
-          cleanup();
-          try {
-            resolve(JSON.parse(bodyBuffer.toString('utf-8', 0, contentLength)));
-          } catch (e) {
-            reject(new Error(`JSON 解析失败: ${e.message}`));
-          }
+async function readMcpMessage() {
+  while (true) {
+    const headerEnd = mcpInputBuffer.indexOf('\r\n\r\n');
+    if (headerEnd !== -1) {
+      const header = mcpInputBuffer.subarray(0, headerEnd).toString('utf-8');
+      const match = header.match(/Content-Length:\s*(\d+)/i);
+      if (!match) {
+        // 丢弃无效头部，避免阻塞后续消息
+        mcpInputBuffer = mcpInputBuffer.subarray(headerEnd + 4);
+        throw new Error('MCP 消息缺少 Content-Length 头');
+      }
+      const contentLength = parseInt(match[1], 10);
+      const bodyStart = headerEnd + 4;
+      if (mcpInputBuffer.length >= bodyStart + contentLength) {
+        const body = mcpInputBuffer.subarray(bodyStart, bodyStart + contentLength).toString('utf-8');
+        mcpInputBuffer = mcpInputBuffer.subarray(bodyStart + contentLength);
+        try {
+          return JSON.parse(body);
+        } catch (e) {
+          throw new Error(`JSON 解析失败: ${e.message}`);
         }
       }
     }
-
-    function onEnd() {
-      cleanup();
-      reject(new Error('stdin closed'));
-    }
-
-    function onError(err) {
-      cleanup();
-      reject(err);
-    }
-
-    function cleanup() {
-      process.stdin.removeListener('data', onData);
-      process.stdin.removeListener('end', onEnd);
-      process.stdin.removeListener('error', onError);
-    }
-
-    process.stdin.on('data', onData);
-    process.stdin.on('end', onEnd);
-    process.stdin.on('error', onError);
-    process.stdin.setEncoding('utf-8');
-  });
+    // 已缓冲数据不足一整条消息：等待更多输入
+    if (mcpInputEnded) throw new Error('stdin closed');
+    await new Promise(resolve => mcpInputWaiters.push(resolve));
+  }
 }
 
 /** 向 stdout 写入一个 JSON-RPC 消息（Content-Length 协议，零依赖） */
