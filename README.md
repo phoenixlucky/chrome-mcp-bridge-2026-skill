@@ -1,7 +1,7 @@
 <h1 align="center">chrome-mcp-bridge-2026-skill</h1>
 
 <p align="center">
-  <a href="https://img.shields.io/badge/version-3.1.1-6C47FF"><img src="https://img.shields.io/badge/version-3.1.1-6C47FF" alt="Version 3.1.1"></a>
+  <a href="https://img.shields.io/badge/version-3.1.2-6C47FF"><img src="https://img.shields.io/badge/version-3.1.2-6C47FF" alt="Version 3.1.2"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=white" alt="Node.js"></a>
   <a href="https://spec.modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-Streamable_HTTP-FF6B35?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjIgMTIuM2wtMy0zTTE3IDE4SDdNMTIgMjJsLTMtM00xMiAybC0zIDNNMiAxMi4zbDMtMyIvPjwvc3ZnPg==" alt="MCP"></a>
   <a href="https://github.com/phoenixlucky/mcp-chrome-2026"><img src="https://img.shields.io/badge/Chrome_MCP-v2.0-4285F4?logo=googlechrome&logoColor=white" alt="Chrome MCP"></a>

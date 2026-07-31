@@ -1,7 +1,7 @@
 ---
 name: chrome-mcp-bridge-2026-skill
 description: 通过 Node.js 桥接脚本稳定连接 streamable-http MCP 服务（自动管理 session ID、支持所有 JSON-RPC 方法），支持 --server 模式作为标准 MCP Server 供任意 AI 客户端使用
-version: 3.1.1
+version: 3.1.2
 ---
 
 # 🧠 重要：你是一个本地 MCP 浏览器 + 猫娘搜索！
