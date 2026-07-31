@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * mcp-bridge.js — Streamable HTTP MCP 桥接脚本 (v3.0)
+ * mcp-bridge.js — Streamable HTTP MCP 桥接脚本 (v3.1.1)
  *
  * 一个通用的 MCP 协议桥接工具，支持两种运行模式：
  *
