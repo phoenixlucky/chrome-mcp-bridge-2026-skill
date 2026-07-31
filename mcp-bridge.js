@@ -23,6 +23,8 @@
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const net = require('net');
+const { spawn } = require('child_process');
 
 // ── 配置 ──────────────────────────────────────────────────────────────────
 
@@ -330,29 +332,6 @@ function extractTools(backendResult) {
   return [];
 }
 
-/** 初始化后端连接并拉取工具列表 */
-async function initBackend() {
-  console.error('[mcp-server] 正在连接后端 MCP 服务...');
-  const initResult = await callWithRetry('initialize', {
-    protocolVersion: LATEST_PROTOCOL_VERSION,
-    capabilities: { roots: { listChanged: false }, sampling: {} },
-    clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
-  });
-  console.error('[mcp-server] 后端 MCP 连接成功');
-  debug(`协商协议版本: ${LATEST_PROTOCOL_VERSION}`);
-
-  let backendTools = [];
-  try {
-    const toolsResult = await callWithRetry('tools/list');
-    backendTools = extractTools(toolsResult);
-    console.error(`[mcp-server] 已加载 ${backendTools.length} 个工具`);
-  } catch (err) {
-    console.error(`[mcp-server] 获取工具列表失败: ${err.message}`);
-  }
-
-  return { initResult, backendTools };
-}
-
 /** 处理单个 MCP 请求 */
 async function handleRequest(id, method, params) {
   debug('收到请求:', method, JSON.stringify(params).substring(0, 200));
@@ -485,22 +464,144 @@ async function handleRequest(id, method, params) {
   }
 }
 
-/** MCP Server 主循环 */
-async function startMcpServer() {
-  // 先把 stdin 设为原始模式（不缓冲行）
-  // 注意：stdin 的 readable 事件可能和我们的 readMcpMessage 冲突
-  // 但我们只用 data 事件 + 自己管理 buffer
-
+/** 快速探测后端 MCP 服务是否存活（短超时）
+ *  用 TCP 连接检测端口是否开放，不发送任何 MCP 请求，避免干扰 session */
+async function probeBackend(url, timeoutMs = 3000) {
   try {
-    await initBackend();
-  } catch (err) {
-    console.error(`[mcp-server] 后端连接失败: ${err.message}`);
-    console.error('[mcp-server] 仍将继续监听，但后端工具可能不可用');
+    const urlObj = new URL(url);
+    const port = parseInt(urlObj.port, 10) || 80;
+    const host = urlObj.hostname;
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      socket.setTimeout(timeoutMs);
+      socket.on('connect', () => { socket.destroy(); resolve(true); });
+      socket.on('timeout', () => { socket.destroy(); resolve(false); });
+      socket.on('error', () => { socket.destroy(); resolve(false); });
+      socket.connect(port, host);
+    });
+  } catch {
+    return false;
+  }
+}
+
+/** 自动启动后端 Chrome MCP 服务（mcp-chrome-bridge start） */
+function autoStartBackend() {
+  return new Promise((resolve, reject) => {
+    console.error('[mcp-server] 后端 MCP 服务未运行，正在自动启动...');
+
+    const child = spawn('mcp-chrome-bridge', ['start', '--port', '12306'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: false,
+      shell: process.platform === 'win32',
+    });
+
+    let started = false;
+    const startupTimeout = setTimeout(() => {
+      if (!started) {
+        started = true;
+        console.error('[mcp-server] 警告: 后端服务启动超时（15s），将继续尝试连接');
+        resolve(false);
+      }
+    }, 15000);
+
+    child.stdout.on('data', (data) => {
+      const text = data.toString();
+      console.error('[后端]', text.trim());
+      // 服务启动后会打印特定信息
+      if (!started && (text.includes('listening') || text.includes('started') || text.includes('Server') || text.includes('12306'))) {
+        started = true;
+        clearTimeout(startupTimeout);
+        console.error('[mcp-server] 后端服务已启动');
+        // 给服务一点时间完全就绪
+        setTimeout(() => resolve(true), 1000);
+      }
+    });
+
+    child.stderr.on('data', (data) => {
+      const text = data.toString();
+      console.error('[后端]', text.trim());
+      if (!started && (text.includes('listening') || text.includes('started') || text.includes('Server') || text.includes('12306'))) {
+        started = true;
+        clearTimeout(startupTimeout);
+        console.error('[mcp-server] 后端服务已启动');
+        setTimeout(() => resolve(true), 1000);
+      }
+    });
+
+    child.on('error', (err) => {
+      if (!started) {
+        started = true;
+        clearTimeout(startupTimeout);
+        console.error(`[mcp-server] 启动后端服务失败: ${err.message}`);
+        resolve(false);
+      }
+    });
+
+    child.on('exit', (code) => {
+      if (!started) {
+        started = true;
+        clearTimeout(startupTimeout);
+        console.error(`[mcp-server] 后端服务异常退出 (code: ${code})`);
+        resolve(false);
+      }
+    });
+  });
+}
+
+async function startMcpServer() {
+  // 先开始监听 stdin，确保 Reasonix 的 initialize 请求不会丢失
+  console.error('[mcp-server] 正在监听 stdin（MCP stdio 协议）...');
+
+  // 在后台异步初始化后端连接，不阻塞 stdin 处理
+  let backendReady = false;
+  let backendTools = [];
+
+  async function initBackendAsync() {
+    // 自动检测并启动后端 MCP 服务
+    const isAlive = await probeBackend(MCP_URL, 3000);
+    if (!isAlive) {
+      console.error('[mcp-server] 后端 MCP 服务不可用，尝试自动启动...');
+      const launched = await autoStartBackend();
+      if (launched) {
+        for (let i = 0; i < 10; i++) {
+          const ready = await probeBackend(MCP_URL, 2000);
+          if (ready) break;
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      } else {
+        console.error('[mcp-server] 自动启动失败，请手动执行: mcp-chrome-bridge start');
+      }
+    }
+
+    try {
+      console.error('[mcp-server] 正在连接后端 MCP 服务...');
+      const initResult = await callWithRetry('initialize', {
+        protocolVersion: LATEST_PROTOCOL_VERSION,
+        capabilities: { roots: { listChanged: false }, sampling: {} },
+        clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
+      });
+      console.error('[mcp-server] 后端 MCP 连接成功');
+
+      try {
+        const toolsResult = await callWithRetry('tools/list');
+        backendTools = extractTools(toolsResult);
+        console.error(`[mcp-server] 已加载 ${backendTools.length} 个工具`);
+      } catch (err) {
+        console.error(`[mcp-server] 获取工具列表失败: ${err.message}`);
+      }
+      backendReady = true;
+    } catch (err) {
+      console.error(`[mcp-server] 后端连接失败: ${err.message}`);
+      console.error('[mcp-server] 仍将继续监听，但后端工具可能不可用');
+    }
   }
 
-  console.error('[mcp-server] 正在监听 stdin（MCP stdio 协议）...');
-  console.error('[mcp-server] 按 Ctrl+C 退出');
+  // 异步启动后端初始化
+  initBackendAsync().catch(err => {
+    console.error(`[mcp-server] 后端初始化异常: ${err.message}`);
+  });
 
+  // 主循环：立即开始处理 stdin 请求
   while (true) {
     let message;
     try {

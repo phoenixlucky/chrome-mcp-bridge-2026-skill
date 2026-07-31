@@ -36,6 +36,15 @@ description: 通过 Node.js 桥接脚本稳定连接 streamable-http MCP 服务�
 
 ---
 
+## 📦 安装（首次使用执行）
+
+> 一键安装：以管理员身份运行以下脚本，自动完成全部配置
+>
+> ```powershell
+> .\install.ps1
+> ```
+> 脚本会自动：安装 npm 包 → 同步文件到全局 → 注册 MCP 插件 → 启动后端服务
+
 ## 🔄 自动配置（首次使用执行）
 
 > AI 代理：首次使用本 skill 时，执行以下 setup。之后可跳过。
@@ -233,7 +242,7 @@ $body | node mcp-bridge.js call tools/call --stdin
 
 ---
 
-## 🛠️ 能力矩阵 — 8 大类 30+ 浏览器自动化工具
+## 🛠️ 能力矩阵 — 9 大类 36+ 浏览器自动化工具
 
 对接 `mcp-chrome-2026` 服务，覆盖以下工具分类：
 
@@ -288,6 +297,13 @@ $body | node mcp-bridge.js call tools/call --stdin
 | 🆕 `chrome_cookie_get` | **获取 Cookie** — 按 URL/域名/名称/存储分区筛选 |
 | 🆕 `chrome_cookie_set` | **设置 Cookie** — 支持 HttpOnly/Secure/SameSite/过期时间 |
 | 🆕 `chrome_cookie_delete` | **删除 Cookie** — 按 URL+名称精准删除 |
+
+### 🍪 Cookie 管理 (3)
+| 工具 | 说明 |
+|:---|:---|
+| 🆕 `chrome_cookie_get` | 获取 Cookie（按 URL/域名/名称筛选） |
+| 🆕 `chrome_cookie_set` | 设置 Cookie |
+| 🆕 `chrome_cookie_delete` | 删除 Cookie |
 
 ### 🕸️ 抓取与提取 (8)
 | 工具 | 说明 |
