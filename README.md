@@ -282,7 +282,6 @@ chrome-mcp-bridge-2026-skill/
 ├── 📘 SKILL.md           AI 代理操作手册（自动配置 + CLI 速查）
 ├── 📖 README.md          本文件（项目首页）
 ├── ⚙️ .mcp.json          MCP 配置模板（注册为 Stdio Server）
-├── ⚙️ reasonix.toml      Reasonix 项目配置
 ├── 🔒 .gitignore         版本控制忽略规则
 └── ⚖️ LICENSE            MIT 许可证
 ```
