@@ -4,3 +4,5 @@ node_modules/
 reasonix.local.toml
 reasonix.toml
 .reasonix/
+# 本机安装时从 .mcp.json.example 生成，不入库
+.mcp.json

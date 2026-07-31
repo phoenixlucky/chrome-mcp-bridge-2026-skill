@@ -77,19 +77,18 @@ $absPath = node $scriptPath path
 Write-Output "脚本绝对路径: $absPath"
 ```
 
-### Step 3：生成 `.mcp.json` 到项目根目录
+### Step 3：从模板生成 `.mcp.json` 到项目根目录
+
+> 仓库内**不直接存放 `.mcp.json`**（会被 Reasonix 等智能助手自动扫描并启动 MCP 服务），只提供模板 `.mcp.json.example`。只有执行本步骤（即"安装"动作）时才生成实际的 `.mcp.json`。
 
 ```powershell
-$mcpConfig = @'
-{
-  "mcpServers": {
-    "chrome": {
-      "command": "node",
-      "args": ["__BRIDGE_PATH__", "--server"]
-    }
-  }
+# 定位模板文件（与 mcp-bridge.js 同目录）
+$templatePath = Join-Path (Split-Path $scriptPath) ".mcp.json.example"
+if (-not (Test-Path $templatePath)) {
+    Write-Error "未找到模板 .mcp.json.example（$templatePath）"
+    exit 1
 }
-'@
+$mcpConfig = Get-Content $templatePath -Raw
 $mcpConfig = $mcpConfig.Replace('__BRIDGE_PATH__', $absPath.Replace('\', '\\'))
 
 $targetPath = Join-Path (Get-Location) ".mcp.json"

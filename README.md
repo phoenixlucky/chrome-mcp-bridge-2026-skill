@@ -147,7 +147,13 @@ cd chrome-mcp-bridge-2026-skill
 
 #### 🅰️ 通过 MCP 客户端（推荐）
 
-在项目根目录创建 `.mcp.json`：
+从仓库模板复制生成 `.mcp.json`（仓库内不直接存放 `.mcp.json`，避免被智能助手自动扫描）：
+
+```powershell
+Copy-Item .mcp.json.example .mcp.json
+```
+
+再将模板中的 `__BRIDGE_PATH__` 替换为本机 `mcp-bridge.js` 的绝对路径（在仓库根目录运行 `node mcp-bridge.js path` 可取得该路径）：
 
 ```json
 {
@@ -281,7 +287,7 @@ chrome-mcp-bridge-2026-skill/
 ├── 📄 mcp-bridge.js      核心桥接脚本（Node.js，零外部依赖）
 ├── 📘 SKILL.md           AI 代理操作手册（自动配置 + CLI 速查）
 ├── 📖 README.md          本文件（项目首页）
-├── ⚙️ .mcp.json          MCP 配置模板（注册为 Stdio Server）
+├── ⚙️ .mcp.json.example MCP 配置模板（安装时生成 `.mcp.json`）
 ├── 🔒 .gitignore         版本控制忽略规则
 └── ⚖️ LICENSE            MIT 许可证
 ```

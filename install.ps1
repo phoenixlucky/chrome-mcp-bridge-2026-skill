@@ -53,7 +53,7 @@ Write-Step "同步文件到全局目录..."
 $files = @(
   @{src="mcp-bridge.js"; dst="mcp-bridge.js"},
   @{src="SKILL.md"; dst="SKILL.md"},
-  @{src=".mcp.json"; dst=".mcp.json"}
+  @{src=".mcp.json.example"; dst=".mcp.json.example"}
 )
 
 $copied = 0
