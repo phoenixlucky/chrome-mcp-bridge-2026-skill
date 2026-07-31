@@ -46,6 +46,19 @@ version: 3.1.2
 > ```
 > 脚本会自动：安装 npm 包 → 同步文件到全局 → 注册 MCP 插件 → 启动后端服务
 
+> ### ⚠️ 修改 / 更新本技能后：必须重启「指南助手」应用，而不是新开对话框！
+>
+> `mcp-bridge.js` 是随 **Reasonix 应用进程（`reasonix-desktop.exe`）启动时** spawn 并长驻的 MCP 插件进程。
+> **新开对话框/话题不会重新加载脚本**——只有**完全退出并重新打开 Reasonix 应用**才生效。
+>
+> 正确操作：
+> 1. 右键**系统托盘**的 Reasonix 图标 → **退出**（仅点窗口 × 关闭不够）
+> 2. 在任务管理器中确认 `reasonix-desktop.exe` 已结束
+> 3. 重新打开 Reasonix → 再调用 connect（工具名 `mcp__chrome-mcp-bridge__connect`）
+>
+> 判断是否已重启：任务管理器里 `reasonix-desktop.exe` 的**启动时间**应为最近。
+> 若 connect 仍卡住或报 `failed to start / read: EOF`，先检查应用是否真的重启过。
+
 ## 🔄 自动配置（首次使用执行）
 
 > AI 代理：首次使用本 skill 时，执行以下 setup。之后可跳过。

@@ -248,8 +248,13 @@ function readStdin() {
 let mcpInputBuffer = Buffer.alloc(0);
 let mcpInputWaiters = [];
 let mcpInputEnded = false;
+/** 客户端使用的 stdio framing：'content-length'（标准 MCP/LSP）或 'newline'（裸 JSON 行，Reasonix 用这种） */
+let clientFraming = 'content-length';
+const DIAG_IN = path.join(os.tmpdir(), 'bridge-diag-in.log');
+const DIAG_OUT = path.join(os.tmpdir(), 'bridge-diag-out.log');
 
 process.stdin.on('data', chunk => {
+  try { fs.appendFileSync(DIAG_IN, chunk); } catch {}
   mcpInputBuffer = Buffer.concat([mcpInputBuffer, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
   const waiter = mcpInputWaiters.shift();
   if (waiter) waiter();
@@ -266,49 +271,94 @@ process.stdin.on('error', () => {
 });
 
 /**
- * 从 stdin 读取一个完整的 JSON-RPC 消息（Content-Length 协议）
+ * 从 stdin 读取一个完整的 JSON-RPC 消息。
  *
- * MCP stdio 传输协议格式：
- *   Content-Length: N\r\n
- *   \r\n
- *   {"jsonrpc":"2.0","id":1,...}   ← 恰好 N 字节
+ * 同时支持两种 stdio framing（增量解析，兼容单 chunk 多消息）：
+ *   1. Content-Length 帧（标准 MCP）：
+ *        Content-Length: N\r\n\r\n{body 恰好 N 字节}
+ *   2. newline-delimited JSON（Reasonix 等客户端）：
+ *        {jsonrpc...}\n
  *
- * 解析是增量式的：先从已缓冲数据尝试解析一条；数据不足则等待新 chunk。
+ * 识别到哪种格式就记录到 clientFraming，响应用相同格式回写。
  */
 async function readMcpMessage() {
   while (true) {
-    const headerEnd = mcpInputBuffer.indexOf('\r\n\r\n');
-    if (headerEnd !== -1) {
-      const header = mcpInputBuffer.subarray(0, headerEnd).toString('utf-8');
-      const match = header.match(/Content-Length:\s*(\d+)/i);
-      if (!match) {
-        // 丢弃无效头部，避免阻塞后续消息
-        mcpInputBuffer = mcpInputBuffer.subarray(headerEnd + 4);
-        throw new Error('MCP 消息缺少 Content-Length 头');
+    if (mcpInputBuffer.length === 0) {
+      if (mcpInputEnded) throw new Error('stdin closed');
+      await new Promise(resolve => mcpInputWaiters.push(resolve));
+      continue;
+    }
+    const firstByte = mcpInputBuffer[0];
+    if (firstByte === 0x7B /* '{'：newline-delimited JSON（Reasonix 风格） */) {
+      const nlIdx = mcpInputBuffer.indexOf('\n');
+      if (nlIdx !== -1) {
+        const line = mcpInputBuffer.subarray(0, nlIdx).toString('utf-8').trim();
+        mcpInputBuffer = mcpInputBuffer.subarray(nlIdx + 1);
+        if (line) {
+          try {
+            clientFraming = 'newline';
+            return JSON.parse(line);
+          } catch (e) {
+            // 非法 JSON 行：跳过，继续解析
+          }
+        }
+        continue;
       }
-      const contentLength = parseInt(match[1], 10);
-      const bodyStart = headerEnd + 4;
-      if (mcpInputBuffer.length >= bodyStart + contentLength) {
-        const body = mcpInputBuffer.subarray(bodyStart, bodyStart + contentLength).toString('utf-8');
-        mcpInputBuffer = mcpInputBuffer.subarray(bodyStart + contentLength);
-        try {
-          return JSON.parse(body);
-        } catch (e) {
-          throw new Error(`JSON 解析失败: ${e.message}`);
+      // 无换行：数据不完整或已结束，走末尾统一处理
+    } else {
+      // Content-Length 帧（标准 MCP/LSP）
+      const headerEnd = mcpInputBuffer.indexOf('\r\n\r\n');
+      if (headerEnd !== -1) {
+        const header = mcpInputBuffer.subarray(0, headerEnd).toString('utf-8');
+        const match = header.match(/Content-Length:\s*(\d+)/i);
+        if (!match) {
+          // 丢弃无效头部，避免阻塞后续消息
+          mcpInputBuffer = mcpInputBuffer.subarray(headerEnd + 4);
+          throw new Error('MCP 消息缺少 Content-Length 头');
+        }
+        const contentLength = parseInt(match[1], 10);
+        const bodyStart = headerEnd + 4;
+        if (mcpInputBuffer.length >= bodyStart + contentLength) {
+          const body = mcpInputBuffer.subarray(bodyStart, bodyStart + contentLength).toString('utf-8');
+          mcpInputBuffer = mcpInputBuffer.subarray(bodyStart + contentLength);
+          clientFraming = 'content-length';
+          try {
+            return JSON.parse(body);
+          } catch (e) {
+            throw new Error(`JSON 解析失败: ${e.message}`);
+          }
         }
       }
     }
     // 已缓冲数据不足一整条消息：等待更多输入
-    if (mcpInputEnded) throw new Error('stdin closed');
+    if (mcpInputEnded) {
+      // stdin 已关闭但 buffer 还有残留：尝试把残留当作最后一条 newline JSON
+      const rest = mcpInputBuffer.toString('utf-8').trim();
+      if (rest) {
+        mcpInputBuffer = Buffer.alloc(0);
+        try {
+          clientFraming = 'newline';
+          return JSON.parse(rest);
+        } catch { /* 忽略残留 */ }
+      }
+      throw new Error('stdin closed');
+    }
     await new Promise(resolve => mcpInputWaiters.push(resolve));
   }
 }
 
-/** 向 stdout 写入一个 JSON-RPC 消息（Content-Length 协议，零依赖） */
+/** 向 stdout 写入一个 JSON-RPC 消息（自动匹配客户端的 framing） */
 function writeMcpMessage(msg) {
   const body = JSON.stringify(msg);
-  const byteLen = Buffer.byteLength(body, 'utf-8');
-  process.stdout.write(`Content-Length: ${byteLen}\r\n\r\n${body}`);
+  let payload;
+  if (clientFraming === 'newline') {
+    payload = body + '\n';
+  } else {
+    const byteLen = Buffer.byteLength(body, 'utf-8');
+    payload = `Content-Length: ${byteLen}\r\n\r\n${body}`;
+  }
+  try { fs.appendFileSync(DIAG_OUT, payload); } catch {}
+  process.stdout.write(payload);
 }
 
 /** 统一的后端工具响应提取 */
