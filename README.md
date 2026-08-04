@@ -1,5 +1,7 @@
 <h1 align="center">chrome-mcp-bridge-2026-skill</h1>
 
+<p align="center">🕷️</p>
+
 <p align="center">
   <a href="https://img.shields.io/badge/version-3.1.2-6C47FF"><img src="https://img.shields.io/badge/version-3.1.2-6C47FF" alt="Version 3.1.2"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=white" alt="Node.js"></a>
