@@ -89,18 +89,20 @@
 
 ## 🔧 能力矩阵
 
-对接 [mcp-chrome-2026](https://github.com/phoenixlucky/mcp-chrome-2026) 服务，覆盖 **8 大类 35+ 浏览器自动化工具**（v1.6.4）：
+对接 [mcp-chrome-2026](https://github.com/phoenixlucky/mcp-chrome-2026) 服务，覆盖 **10 大类 45+ 浏览器自动化工具**（v1.8.0）：
 
 | 分类 | 核心工具 | 能力 |
 |:---:|:---|:---|
 | <b>📊 浏览器管理</b> | `chrome_navigate` · `chrome_close_tabs` · `chrome_switch_tab` · `chrome_go_back_or_forward` | 页面导航、标签页管理、历史控制 |
 | <b>📸 截图视觉</b> | `chrome_screenshot` | 全页/元素截图、自定义视口、base64 输出 |
-| <b>🌐 网络监控</b> | `chrome_network_capture` · `chrome_network_request` · `chrome_block_images` | 请求捕获、自定义请求、资源拦截 |
+| <b>🌐 网络监控</b> | `chrome_network_capture` · `chrome_network_request` · `chrome_block_images` · 🆕 `chrome_block_resources` | 请求捕获、自定义请求、精确资源拦截 |
 | <b>🔍 内容分析</b> | `search_tabs_content` · `chrome_get_page_text` · `chrome_extract` · `chrome_get_interactive_elements` | 语义搜索、Readability 正文解析、结构化提取、交互元素检测 |
-| <b>🎯 交互操作</b> | `chrome_click_element` · `chrome_fill_or_select` · `chrome_keyboard` | 点击、表单填写、键盘快捷键 |
+| <b>🎯 交互操作</b> | `chrome_click_element` · `chrome_fill_or_select` · `chrome_keyboard` · 🆕 `chrome_find_and_click` · 🆕 `chrome_expand_section` | 点击、表单填写、键盘快捷键、查找点击、展开折叠区 |
 | <b>💻 脚本执行</b> | `chrome_javascript` · `chrome_console` | 页面 JS 执行、控制台日志捕获 |
-| <b>📚 数据管理</b> | `chrome_history` · `chrome_bookmark_*` · 🆕 `chrome_cookie_*` | 历史记录检索、书签 CRUD、**Cookie 管理（v1.6.4 新增）** |
-| <b>🕸️ 抓取提取</b> | `chrome_scroll` · `chrome_wait` · `chrome_extract` · `chrome_get_page_text` · `chrome_click_and_wait` · 🆕 `chrome_spa_fetch` | 滚动控制、等待元素、结构化提取、文章解析、组合操作、**SPA 专用提取** |
+| <b>📚 数据管理</b> | `chrome_history` · `chrome_bookmark_*` · `chrome_cookie_*` | 历史记录检索、书签 CRUD、Cookie 管理 |
+| <b>🛡️ 代理管理</b> | 🆕 `chrome_proxy_diagnostics` · 🆕 `chrome_proxy_rotate` | 代理配置诊断/出口 IP 测试、异常时轮换代理会话（v1.8.0） |
+| <b>🕸️ 采集提取</b> | `chrome_scroll` · `chrome_wait` · `chrome_extract` · `chrome_get_page_text` · `chrome_click_and_wait` · `chrome_spa_fetch` · 🆕 `collect_virtual_list` · 🆕 `chrome_paginate_extract` · 🆕 `wait_extract_response` | 滚动控制、等待元素、结构化提取、文章解析、SPA 提取、虚拟列表采集、分页提取、JSON 响应抽取 |
+| <b>🧩 高级辅助</b> | 🆕 `chrome_scoped_action` · 🆕 `chrome_task_context` · 🆕 `chrome_diagnostic_snapshot` · 🆕 `capture_debug_bundle` · 🆕 `chrome_list_frames` · 🆕 `detect_empty_state` · 🆕 `merge_records` | 限定作用域操作、任务上下文、诊断快照、失败现场打包、iframe 框架、空状态检测、记录合并 |
 
 > 💡 执行 `node mcp-bridge.js call tools/list` 可获取实时工具列表及参数签名。详细 AI 操作指南请参阅 [SKILL.md](./SKILL.md)。
 

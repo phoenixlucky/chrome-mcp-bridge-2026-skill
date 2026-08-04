@@ -255,7 +255,7 @@ $body | node mcp-bridge.js call tools/call --stdin
 
 ---
 
-## 🛠️ 能力矩阵 — 9 大类 36+ 浏览器自动化工具
+## 🛠️ 能力矩阵 — 10 大类 45+ 浏览器自动化工具
 
 对接 `mcp-chrome-2026` 服务，覆盖以下工具分类：
 
@@ -275,7 +275,7 @@ $body | node mcp-bridge.js call tools/call --stdin
 |:---|:---|
 | `chrome_screenshot` | 全页/元素/自定义视口截图，支持 base64 |
 
-### 🌐 网络监控 (6)
+### 🌐 网络监控 (7)
 | 工具 | 说明 |
 |:---|:---|
 | `chrome_network_capture_start` | webRequest API 开始捕获 |
@@ -284,6 +284,7 @@ $body | node mcp-bridge.js call tools/call --stdin
 | `chrome_network_debugger_stop` | 停止调试器捕获 |
 | `chrome_network_request` | 发送自定义 HTTP 请求 |
 | `chrome_block_images` | 通过 CDP 阻止图片加载（省带宽） |
+| 🆕 `chrome_block_resources` | **阻止资源加载** — 按类型（image/script/css/font 等）拦截（v1.6.26） |
 
 ### 📝 内容分析 (4)
 | 工具 | 说明 |
@@ -293,12 +294,14 @@ $body | node mcp-bridge.js call tools/call --stdin
 | `chrome_get_interactive_elements` | 查找可点击/交互元素 |
 | `chrome_console` | 捕获浏览器控制台输出 |
 
-### 🖱️ 交互操作 (3)
+### 🖱️ 交互操作 (5)
 | 工具 | 说明 |
 |:---|:---|
 | `chrome_click_element` | CSS 选择器点击元素 |
 | `chrome_fill_or_select` | 填充表单或选择选项 |
 | `chrome_keyboard` | 模拟键盘输入和快捷键 |
+| 🆕 `chrome_find_and_click` | **查找并点击** — 滚动查找匹配元素后点击（v1.6.26） |
+| 🆕 `chrome_expand_section` | **展开折叠区域** — 展开 accordion/dropdown 等（v1.6.26） |
 
 ### 📑 数据管理 (7)
 | 工具 | 说明 |
@@ -314,11 +317,17 @@ $body | node mcp-bridge.js call tools/call --stdin
 ### 🍪 Cookie 管理 (3)
 | 工具 | 说明 |
 |:---|:---|
-| 🆕 `chrome_cookie_get` | 获取 Cookie（按 URL/域名/名称筛选） |
-| 🆕 `chrome_cookie_set` | 设置 Cookie |
-| 🆕 `chrome_cookie_delete` | 删除 Cookie |
+| `chrome_cookie_get` | 获取 Cookie（按 URL/域名/名称筛选） |
+| `chrome_cookie_set` | 设置 Cookie（支持 HttpOnly/Secure/SameSite） |
+| `chrome_cookie_delete` | 删除 Cookie |
 
-### 🕸️ 抓取与提取 (8)
+### 🛡️ 代理管理 (2)
+| 工具 | 说明 |
+|:---|:---|
+| 🆕 `chrome_proxy_diagnostics` | **代理诊断** — 读取代理配置及 Chrome 接管状态；`action=test` 验证代理出口 IP（v1.7.16） |
+| 🆕 `chrome_proxy_rotate` | **代理轮换** — 标签页异常时轮换代理会话并重新加载页面（不泄露账号密码，v1.8.0） |
+
+### 🕸️ 抓取与提取 (14)
 | 工具 | 说明 |
 |:---|:---|
 | `chrome_get_tab_url` | 快速获取标签页 URL/标题 |
@@ -329,6 +338,23 @@ $body | node mcp-bridge.js call tools/call --stdin
 | `chrome_get_page_text` | Readability 提取文章正文 |
 | `chrome_click_and_wait` | 点击 + 等待组合操作 |
 | 🆕 `chrome_spa_fetch` | **SPA 专用**：导航+渲染+滚动+提取一步完成 |
+| 🆕 `chrome_scan_for_section` | **滚动查找区域** — 滚动直到找到目标区块（v1.6.26） |
+| 🆕 `chrome_paginate_extract` | **分页提取** — 翻页/滚动采集多页数据（v1.6.26） |
+| 🆕 `chrome_extract_records` | **提取记录** — 批量抽取结构化记录（v1.6.26） |
+| 🆕 `collect_virtual_list` | **虚拟列表采集** — 动态列表稳定抽取去重，支持小步滚动/停滞判断/向上回扫（v1.7.0） |
+| 🆕 `wait_extract_response` | **等待响应抽取** — 等待指定 JSON 响应并按 JSONPath 抽取（v1.7.0） |
+| 🆕 `detect_empty_state` | **空状态检测** — 判断页面/容器是否为空（v1.6.26） |
+| 🆕 `merge_records` | **合并记录** — 合并多轮采集结果（v1.6.26） |
+
+### 🧩 高级辅助 (5)
+| 工具 | 说明 |
+|:---|:---|
+| 🆕 `chrome_scoped_action` | **限定作用域操作** — 在指定容器/iframe 内执行操作（v1.6.26） |
+| 🆕 `chrome_task_context` | **任务上下文** — 传递/持久化任务状态（v1.6.26） |
+| 🆕 `chrome_diagnostic_snapshot` | **诊断快照** — 采集页面/网络/性能状态（v1.6.26） |
+| 🆕 `chrome_list_frames` | **列出框架** — 枚举页面 iframe 框架（v1.6.26） |
+| 🆕 `capture_debug_bundle` | **失败现场打包** — 截图+DOM+控制台+网络摘要保存到下载目录（v1.7.0） |
+| 🆕 `resume_tab_task` | **状态恢复** — 保存/读取/清除调用方状态（v1.7.0） |
 
 ## 已知限制
 
@@ -397,6 +423,57 @@ $result = $scrollBody | node mcp-bridge.js call tools/call --stdin
 ```
 
 或对 X/Twitter、Reddit 等使用 `chrome_spa_fetch` 一站式完成。
+
+### 虚拟列表/分页采集（v1.7.0+）
+
+对无限滚动、虚拟列表、分页列表，优先使用新增的专用工具：
+
+```powershell
+# 1. 虚拟列表采集（自动小步滚动 + 停滞判断 + 去重）
+$body = @'
+{"name":"collect_virtual_list","arguments":{"selectors":["[data-testid=\"tweet\"]"],"maxScrolls":20}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+
+# 2. 分页提取（翻页/滚动采集多页）
+$body = @'
+{"name":"chrome_paginate_extract","arguments":{"nextButtonSelector":".pagination-next","itemSelector":"tr.item","maxPages":5}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+
+# 3. 等待 JSON 响应并抽取（导航/点击后等待 API 响应）
+$body = @'
+{"name":"wait_extract_response","arguments":{"urlPattern":"*api*list*","jsonPath":"$.data.items"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+```
+
+### 代理诊断与轮换（v1.8.0）
+
+```powershell
+# 1. 诊断代理配置与出口 IP
+$body = @'
+{"name":"chrome_proxy_diagnostics","arguments":{"action":"test"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+
+# 2. 标签页异常时轮换代理会话（不会返回账号密码）
+$body = @'
+{"name":"chrome_proxy_rotate","arguments":{"reason":"ip_blocked"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+```
+
+### 失败现场打包（v1.7.0）
+
+采集失败时一键保存调试现场到下载目录（截图 + DOM + 控制台 + 脱敏网络摘要）：
+
+```powershell
+$body = @'
+{"name":"capture_debug_bundle","arguments":{"label":"scrape-001"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+```
 
 ---
 
