@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * mcp-bridge.js — Streamable HTTP MCP 桥接脚本 (v3.1.2)
+ * mcp-bridge.js — Streamable HTTP MCP 桥接脚本 (v3.2.0)
  *
  * 一个通用的 MCP 协议桥接工具，支持两种运行模式：
  *
@@ -29,14 +29,17 @@ const { spawn } = require('child_process');
 // ── 配置 ──────────────────────────────────────────────────────────────────
 
 const MCP_URL = process.env.MCP_SERVER_URL || 'http://127.0.0.1:12306/mcp';
-const REQUEST_TIMEOUT_MS = 30_000;
+const DEFAULT_TOOL_TIMEOUT_MS = 60_000;
+const LONG_TOOL_TIMEOUT_MS = 120_000;
+const MIN_TOOL_TRANSPORT_TIMEOUT_MS = 20_000;
+const LONG_TOOL = /(?:performance|trace|record|download|upload|proxy_diagnostics)/;
 const MAX_RETRIES = 2;
 const STDIN_TIMEOUT_MS = 3000;
 const SESSION_FILE = path.join(os.tmpdir(), 'mcp-bridge-session.json');
 const SERVER_NAME = 'mcp-bridge-server';
-const SERVER_VERSION = '3.1.2';
+const SERVER_VERSION = '3.2.0';
 const BACKEND_CLIENT_NAME = 'mcp-bridge-backend';
-const BACKEND_CLIENT_VERSION = '3.1.2';
+const BACKEND_CLIENT_VERSION = '3.2.0';
 
 // MCP 协议版本协商 — 与服务端 SDK 列表保持一致
 const SUPPORTED_PROTOCOL_VERSIONS = [
@@ -122,6 +125,18 @@ function parseSSEStream(text) {
 
 // ── HTTP 请求 ─────────────────────────────────────────────────────────────
 
+function timeoutFor(method, params = {}) {
+  if (method !== 'tools/call') return DEFAULT_TOOL_TIMEOUT_MS;
+  const args = params.arguments || {};
+  const ceiling = LONG_TOOL.test(params.name || '')
+    ? LONG_TOOL_TIMEOUT_MS
+    : DEFAULT_TOOL_TIMEOUT_MS;
+  const requested = Number(args.timeoutMs ?? args.timeout);
+  return Number.isFinite(requested)
+    ? Math.min(Math.max(requested, MIN_TOOL_TRANSPORT_TIMEOUT_MS), ceiling)
+    : ceiling;
+}
+
 async function sendRequest(method, params = {}) {
   const sessionId = loadSession();
   const headers = {
@@ -135,8 +150,9 @@ async function sendRequest(method, params = {}) {
     ? { jsonrpc: '2.0', method, params }
     : { jsonrpc: '2.0', id: `${Date.now()}-${++requestSequence}`, method, params };
 
+  const requestTimeoutMs = timeoutFor(method, params);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
   let response;
   try {
     response = await fetch(MCP_URL, {
@@ -146,7 +162,7 @@ async function sendRequest(method, params = {}) {
     });
   } catch (err) {
     clearTimeout(timeout);
-    if (err.name === 'AbortError') throw new Error(`请求超时 (${REQUEST_TIMEOUT_MS}ms): ${method}`);
+    if (err.name === 'AbortError') throw new Error(`请求超时 (${requestTimeoutMs}ms): ${method}`);
     if (err.code === 'ECONNREFUSED') throw new Error(`无法连接 MCP 服务: ${MCP_URL} — 请确认服务已启动`);
     throw new Error(`网络错误: ${err.message}`);
   }
