@@ -3,7 +3,7 @@
 <p align="center">🕷️</p>
 
 <p align="center">
-  <a href="https://img.shields.io/badge/version-3.2.0-6C47FF"><img src="https://img.shields.io/badge/version-3.2.0-6C47FF" alt="Version 3.2.0"></a>
+  <a href="https://img.shields.io/badge/version-3.3.0-6C47FF"><img src="https://img.shields.io/badge/version-3.3.0-6C47FF" alt="Version 3.3.0"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=white" alt="Node.js"></a>
   <a href="https://spec.modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-Streamable_HTTP-FF6B35?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjIgMTIuM2wtMy0zTTE3IDE4SDdNMTIgMjJsLTMtM00xMiAybC0zIDNNMiAxMi4zbDMtMyIvPjwvc3ZnPg==" alt="MCP"></a>
   <a href="https://github.com/phoenixlucky/mcp-chrome-2026"><img src="https://img.shields.io/badge/Chrome_MCP-v2.0-4285F4?logo=googlechrome&logoColor=white" alt="Chrome MCP"></a>
@@ -224,6 +224,26 @@ node mcp-bridge.js call tools/call --stdin < params.json
 ```
 
 > ⚠️ **PowerShell 用户注意**：`&` 是命令分隔符，直接传含 `&` 的 JSON 参数会失败。**务必使用 `--stdin` 管道模式。**
+
+### 实时进度通知
+
+`--server` 模式会增量解析后端的 SSE 响应。后端发送的 `notifications/progress` 等无 `id` JSON-RPC 通知会立即转发到上游 stdio 客户端，工具最终结果仍按原请求 `id` 返回。
+
+调用方需要在 `tools/call` 的 `_meta` 中提供 `progressToken`，例如：
+
+```json
+{
+  "name": "collect_virtual_list",
+  "arguments": {
+    "cardSelector": ".card",
+    "fields": [{ "name": "id", "selector": "[data-id]", "type": "attribute", "attribute": "data-id" }],
+    "identityFields": ["id"]
+  },
+  "_meta": { "progressToken": "collect-1" }
+}
+```
+
+CLI 模式会把收到的通知写入 stderr，最终 JSON 仍写入 stdout，方便脚本继续解析最终结果。
 
 ---
 

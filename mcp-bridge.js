@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * mcp-bridge.js — Streamable HTTP MCP 桥接脚本 (v3.2.0)
+ * mcp-bridge.js — Streamable HTTP MCP 桥接脚本 (v3.3.0)
  *
  * 一个通用的 MCP 协议桥接工具，支持两种运行模式：
  *
@@ -32,14 +32,14 @@ const MCP_URL = process.env.MCP_SERVER_URL || 'http://127.0.0.1:12306/mcp';
 const DEFAULT_TOOL_TIMEOUT_MS = 60_000;
 const LONG_TOOL_TIMEOUT_MS = 120_000;
 const MIN_TOOL_TRANSPORT_TIMEOUT_MS = 20_000;
-const LONG_TOOL = /(?:performance|trace|record|download|upload|proxy_diagnostics)/;
+const LONG_TOOL = /(?:performance|trace|record|download|upload|proxy_diagnostics|collect_virtual_list)/;
 const MAX_RETRIES = 2;
 const STDIN_TIMEOUT_MS = 3000;
 const SESSION_FILE = path.join(os.tmpdir(), 'mcp-bridge-session.json');
 const SERVER_NAME = 'mcp-bridge-server';
-const SERVER_VERSION = '3.2.0';
+const SERVER_VERSION = '3.3.0';
 const BACKEND_CLIENT_NAME = 'mcp-bridge-backend';
-const BACKEND_CLIENT_VERSION = '3.2.0';
+const BACKEND_CLIENT_VERSION = '3.3.0';
 
 // MCP 协议版本协商 — 与服务端 SDK 列表保持一致
 const SUPPORTED_PROTOCOL_VERSIONS = [
@@ -123,6 +123,60 @@ function parseSSEStream(text) {
   return events;
 }
 
+function parseSSEEventBlock(block) {
+  const event = {};
+  const dataLines = [];
+  for (const line of block.split(/\r?\n/)) {
+    if (line.startsWith('event:')) event.event = line.slice(6).trim();
+    else if (line.startsWith('data:')) dataLines.push(line.slice(5).replace(/^ /, ''));
+  }
+  if (dataLines.length) {
+    const data = dataLines.join('\n');
+    try { event.data = JSON.parse(data); } catch { event.data = data; }
+  }
+  return event;
+}
+
+/**
+ * Consume an MCP SSE response incrementally. Notifications are delivered
+ * before the final JSON-RPC response so a stdio client can observe progress
+ * while a long-running tool is still executing.
+ */
+async function consumeSSEStream(response, requestId, onNotification) {
+  if (!response.body) return null;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let finalMessage = null;
+
+  const handleBlock = async (block) => {
+    const event = parseSSEEventBlock(block);
+    const message = event.data;
+    if (!message || typeof message !== 'object') return;
+    if (message.id === requestId && (hasOwn(message, 'result') || hasOwn(message, 'error'))) {
+      finalMessage = message;
+      return;
+    }
+    if (message.method && message.id === undefined) {
+      await onNotification?.(message);
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (value) buffer += decoder.decode(value, { stream: !done });
+    let separator;
+    while ((separator = buffer.indexOf('\n\n')) !== -1) {
+      const block = buffer.slice(0, separator);
+      buffer = buffer.slice(separator + 2);
+      await handleBlock(block);
+    }
+    if (done) break;
+  }
+  if (buffer.trim()) await handleBlock(buffer);
+  return finalMessage;
+}
+
 // ── HTTP 请求 ─────────────────────────────────────────────────────────────
 
 function timeoutFor(method, params = {}) {
@@ -137,7 +191,7 @@ function timeoutFor(method, params = {}) {
     : ceiling;
 }
 
-async function sendRequest(method, params = {}) {
+async function sendRequest(method, params = {}, options = {}) {
   const sessionId = loadSession();
   const headers = {
     'Content-Type': 'application/json',
@@ -145,7 +199,7 @@ async function sendRequest(method, params = {}) {
   };
   if (sessionId && method !== 'initialize') headers['Mcp-Session-Id'] = sessionId;
 
-  const isNotification = method === 'close' || method === 'notifications/**';
+  const isNotification = method === 'close' || method.startsWith('notifications/');
   const body = isNotification
     ? { jsonrpc: '2.0', method, params }
     : { jsonrpc: '2.0', id: `${Date.now()}-${++requestSequence}`, method, params };
@@ -166,38 +220,40 @@ async function sendRequest(method, params = {}) {
     if (err.code === 'ECONNREFUSED') throw new Error(`无法连接 MCP 服务: ${MCP_URL} — 请确认服务已启动`);
     throw new Error(`网络错误: ${err.message}`);
   }
-  clearTimeout(timeout);
+  try {
+    const newSessionId = response.headers.get('Mcp-Session-Id');
+    if (newSessionId) saveSession(newSessionId);
 
-  const newSessionId = response.headers.get('Mcp-Session-Id');
-  if (newSessionId) saveSession(newSessionId);
+    const contentType = (response.headers.get('Content-Type') || '').toLowerCase();
 
-  const contentType = (response.headers.get('Content-Type') || '').toLowerCase();
-
-  if (contentType.includes('text/event-stream')) {
-    const rawText = await response.text();
-    const events = parseSSEStream(rawText);
-    const responseEvent = events.find(evt => evt.data && typeof evt.data === 'object'
-      && evt.data.id === body.id && (hasOwn(evt.data, 'result') || hasOwn(evt.data, 'error')));
-    const errorEvent = events.find(evt => evt.data && typeof evt.data === 'object' && hasOwn(evt.data, 'error'));
-    if (responseEvent) return unwrapJsonRpcResponse(responseEvent.data);
-    if (errorEvent) return unwrapJsonRpcResponse(errorEvent.data);
-    throw new Error(`MCP SSE 响应缺少请求 ${body.id} 的 JSON-RPC 结果`);
-  } else {
-    const json = await response.json();
-    if (!json || typeof json !== 'object' || (!hasOwn(json, 'result') && !hasOwn(json, 'error'))) {
-      throw new Error('MCP HTTP 响应不是有效的 JSON-RPC 结果');
+    if (contentType.includes('text/event-stream')) {
+      const responseMessage = await consumeSSEStream(response, body.id, options.onNotification);
+      if (responseMessage) return unwrapJsonRpcResponse(responseMessage);
+      throw new Error(`MCP SSE 响应缺少请求 ${body.id} 的 JSON-RPC 结果`);
+    } else {
+      const json = await response.json();
+      if (!json || typeof json !== 'object' || (!hasOwn(json, 'result') && !hasOwn(json, 'error'))) {
+        throw new Error('MCP HTTP 响应不是有效的 JSON-RPC 结果');
+      }
+      return unwrapJsonRpcResponse(json);
     }
-    return unwrapJsonRpcResponse(json);
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error(`请求超时 (${requestTimeoutMs}ms): ${method}`);
+    if (err.code === 'ECONNREFUSED') throw new Error(`无法连接 MCP 服务: ${MCP_URL} — 请确认服务已启动`);
+    if (err.message && err.message.startsWith('MCP ')) throw err;
+    throw new Error(`网络错误: ${err.message}`);
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
 // ── 带重试的调用 ─────────────────────────────────────────────────────────
 
-async function callWithRetry(method, params = {}) {
+async function callWithRetry(method, params = {}, options = {}) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
-      return await sendRequest(method, params);
+      return await sendRequest(method, params, options);
     } catch (err) {
       lastError = err;
       if (err.isSessionError || (err.message && (
@@ -217,7 +273,7 @@ async function callWithRetry(method, params = {}) {
             clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
           });
           console.error('[桥接] 重新初始化成功，重试原请求...');
-          return await sendRequest(method, params);
+          return await sendRequest(method, params, options);
         } catch (initErr) {
           throw new Error(`Session 恢复失败: ${initErr.message}`);
         }
@@ -451,7 +507,14 @@ async function handleRequest(id, method, params) {
         return;
       }
       try {
-        const result = await callWithRetry('tools/call', { name, arguments: args || {} });
+        const callParams = {
+          name,
+          arguments: args || {},
+          ...(params && params._meta ? { _meta: params._meta } : {}),
+        };
+        const result = await callWithRetry('tools/call', callParams, {
+          onNotification: (notification) => writeMcpMessage(notification),
+        });
 
         // 标准 MCP 响应：content 数组
         let content;
@@ -809,7 +872,11 @@ ${psHint}`);
             }
           }
         }
-        result = await callWithRetry(method, params);
+        result = await callWithRetry(method, params, {
+          onNotification: (notification) => {
+            console.error(`[MCP notification] ${JSON.stringify(notification)}`);
+          },
+        });
         break;
       }
 

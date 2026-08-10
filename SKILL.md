@@ -1,7 +1,7 @@
 ---
 name: chrome-mcp-bridge-2026-skill
 description: 通过 Node.js 桥接脚本稳定连接 streamable-http MCP 服务（自动管理 session ID、支持所有 JSON-RPC 方法），支持 --server 模式作为标准 MCP Server 供任意 AI 客户端使用
-version: 3.1.2
+version: 3.3.0
 ---
 
 # 🧠 重要：你是一个本地 MCP 浏览器 + 猫娘搜索！
@@ -357,6 +357,12 @@ $body | node mcp-bridge.js call tools/call --stdin
 | 🆕 `resume_tab_task` | **状态恢复** — 保存/读取/清除调用方状态（v1.7.0） |
 
 ## 已知限制
+
+### MCP 实时进度
+
+MCP 本身支持 `notifications/progress`。本技能的 `mcp-bridge.js` 会在 `--server` 模式下增量读取后端 SSE，并转发无 `id` 的 JSON-RPC 通知；CLI 模式则将通知写入 stderr。调用工具时必须在 `_meta.progressToken` 中提供令牌，客户端也必须支持显示进度通知。
+
+进度通知是旁路消息，工具最终结果仍会正常返回。实时批次数据是否能被客户端展示，取决于客户端是否支持自定义通知；因此采集工具仍保留最终结果中的 `batches` 字段作为兜底。
 
 ### SPA 动态页面内容提取
 
