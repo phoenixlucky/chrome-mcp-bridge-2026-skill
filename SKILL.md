@@ -1,7 +1,7 @@
 ---
 name: chrome-mcp-bridge-2026-skill
 description: 通过 Node.js 桥接脚本稳定连接 streamable-http MCP 服务（自动管理 session ID、支持所有 JSON-RPC 方法），支持 --server 模式作为标准 MCP Server 供任意 AI 客户端使用
-version: 3.3.1
+version: 3.4.0
 ---
 
 # 🧠 重要：你是一个本地 MCP 浏览器 + 猫娘搜索！
@@ -255,106 +255,144 @@ $body | node mcp-bridge.js call tools/call --stdin
 
 ---
 
-## 🛠️ 能力矩阵 — 10 大类 45+ 浏览器自动化工具
+## 🛠️ 能力矩阵 — 15 大类 75 个浏览器自动化工具
 
-对接 `mcp-chrome-2026` 服务，覆盖以下工具分类：
+对接 `mcp-chrome-2026` 服务（v2.3.x），覆盖以下工具分类：
 
 ### 🖥️ 浏览器管理 (7)
 | 工具 | 说明 |
 |:---|:---|
 | `get_windows_and_tabs` | 列出所有窗口/标签页 |
-| `chrome_navigate` | 导航到 URL（支持新窗口/视口设置） |
+| `chrome_navigate` | 打开 URL、刷新当前标签页、浏览历史前进/后退（`url` 传 `"back"`/`"forward"`） |
+| `chrome_create_tab` 🆕 | 新建标签页，可指定 URL、窗口、前台/后台和固定状态 |
 | `chrome_close_tabs` | 关闭指定标签页或窗口 |
 | `chrome_switch_tab` | 切换到指定标签页 |
-| `chrome_go_back_or_forward` | 浏览器前进/后退 |
-| `chrome_javascript` | 向页面注入 JS 脚本 |
+| `chrome_javascript` | 向页面注入 JS（参数是 `code`；async 函数体内运行，支持顶层 await 和 return） |
 | `chrome_send_command_to_inject_script` | 向注入脚本发送命令 |
 
-### 📸 截图和视觉 (1)
+### 🤖 视觉交互新范式 (3) — 推荐优先使用
 | 工具 | 说明 |
 |:---|:---|
-| `chrome_screenshot` | 全页/元素/自定义视口截图，支持 base64 |
+| 🆕 `chrome_read_page` | 获取视口内可见元素的无障碍树，返回带 `ref` 的元素列表。**看页面优先用它而非截图**；可配合 `filter="interactive"` 只看交互元素 |
+| 🆕 `chrome_computer` | 鼠标键盘综合操作：left_click/right_click/double_click/triple_click/left_click_drag/scroll/scroll_to/type/key/fill/fill_form/hover/wait/resize_page/zoom/screenshot。用 `ref` 定位元素，坐标点击前先 `read_page` 确认位置 |
+| 🆕 `chrome_request_element_selection` | 人工介入回退：定位失败约 3 次后，请用户在页面上手动点选元素 |
 
-### 🌐 网络监控 (7)
-| 工具 | 说明 |
-|:---|:---|
-| `chrome_network_capture_start` | webRequest API 开始捕获 |
-| `chrome_network_capture_stop` | 停止捕获并返回数据 |
-| `chrome_network_debugger_start` | CDP Debugger 捕获（含响应体） |
-| `chrome_network_debugger_stop` | 停止调试器捕获 |
-| `chrome_network_request` | 发送自定义 HTTP 请求 |
-| `chrome_block_images` | 通过 CDP 阻止图片加载（省带宽） |
-| 🆕 `chrome_block_resources` | **阻止资源加载** — 按类型（image/script/css/font 等）拦截（v1.6.26） |
+> 💡 **推荐工作流**：`chrome_read_page` 拿 ref → `chrome_computer` 操作；需要高级截图选项时才直接用 `chrome_screenshot`。
 
-### 📝 内容分析 (4)
+### 📸 截图和视觉 (2)
 | 工具 | 说明 |
 |:---|:---|
-| `search_tabs_content` | AI 语义搜索所有标签页内容 |
-| `chrome_get_web_content` | 提取页面 HTML 或文本 |
-| `chrome_get_interactive_elements` | 查找可点击/交互元素 |
-| `chrome_console` | 捕获浏览器控制台输出 |
+| `chrome_screenshot` | 全页/元素/自定义视口截图，支持 base64（新用法建议走 `chrome_computer` 的 screenshot action） |
+| `chrome_gif_recorder` | 标签页活动录制为 GIF：固定帧率（start）或自动采集模式（auto_start，跟随工具操作自动截帧）；支持 status/capture/clear/export |
 
-### 🖱️ 交互操作 (5)
+### 🌐 网络监控 (3)
 | 工具 | 说明 |
 |:---|:---|
-| `chrome_click_element` | CSS 选择器点击元素 |
-| `chrome_fill_or_select` | 填充表单或选择选项 |
-| `chrome_keyboard` | 模拟键盘输入和快捷键 |
-| 🆕 `chrome_find_and_click` | **查找并点击** — 滚动查找匹配元素后点击（v1.6.26） |
-| 🆕 `chrome_expand_section` | **展开折叠区域** — 展开 accordion/dropdown 等（v1.6.26） |
+| `chrome_network_capture` | **统一入口**（v2.0 合并）：action=start/stop 开始/结束采集；`needResponseBody: true` 用 Debugger API 抓响应正文；支持 inactivityTimeout 自动停止 |
+| `chrome_network_request` | 在浏览器上下文中发送自定义 HTTP 请求（携带 Cookie 等浏览器信息） |
+| `chrome_block_images` / `chrome_block_resources` | 通过 CDP 阻止图片加载 / 按资源类型（Image/Font/Media/Script/Stylesheet/XHR/Fetch）或 URL 通配符拦截 |
 
-### 📑 数据管理 (7)
+### 📝 内容分析 (5)
 | 工具 | 说明 |
 |:---|:---|
-| `chrome_history` | 搜索浏览器历史记录 |
-| `chrome_bookmark_search` | 搜索书签 |
-| `chrome_bookmark_add` | 添加书签（支持文件夹） |
-| `chrome_bookmark_delete` | 删除书签 |
-| 🆕 `chrome_cookie_get` | **获取 Cookie** — 按 URL/域名/名称/存储分区筛选 |
-| 🆕 `chrome_cookie_set` | **设置 Cookie** — 支持 HttpOnly/Secure/SameSite/过期时间 |
-| 🆕 `chrome_cookie_delete` | **删除 Cookie** — 按 URL+名称精准删除 |
+| `search_tabs_content` | AI 语义搜索显式选定的 1~5 个标签页内容 |
+| `chrome_get_web_content` | 提取页面可见 HTML 或文本（textContent 默认 true） |
+| `chrome_get_page_text` | Readability 提取文章正文 + 元数据（标题/摘要/作者等） |
+| `chrome_extract` | CSS 选择器提取结构化数据；字段类型 text/html/outerHtml/attribute/number/href/src/table，input 类控件自动读取实时 value |
+| `chrome_console` | 控制台输出采集：快照模式（默认）+ 缓冲模式（持久缓冲即时读取） |
 
-### 🍪 Cookie 管理 (3)
+### 🖱️ 交互与表单 (10)
 | 工具 | 说明 |
 |:---|:---|
-| `chrome_cookie_get` | 获取 Cookie（按 URL/域名/名称筛选） |
-| `chrome_cookie_set` | 设置 Cookie（支持 HttpOnly/Secure/SameSite） |
-| `chrome_cookie_delete` | 删除 Cookie |
+| `chrome_click_element` | CSS/XPath/ref/坐标点击，支持双击、修饰键、iframe frameId |
+| `chrome_fill_or_select` | 填写 input/textarea/select/checkbox/radio；支持 markerId/markerName/ref 定位 |
+| `chrome_keyboard` | 单键/组合键/文本输入，可定位到指定元素 |
+| `chrome_hover` 🆕 | CSS 或 XPath 选择器悬停元素 |
+| `chrome_locate_element` 🆕 | 定位元素并返回可用 ref/selector/坐标；支持文本/ARIA role/aria-label/data-testid/name 匹配，自动滚动高亮 |
+| `chrome_find_and_click` | 滚动查找匹配元素后点击（候选依次尝试，点第一个可见可用的） |
+| `chrome_expand_section` | 展开 accordion/dropdown 折叠区并等待内容出现 |
+| `chrome_get_element_info` 🆕 | 查询元素 attributes、computed styles 和 bounding rect |
+| `chrome_get_form_value` 🆕 | 读表单控件的实时 DOM value（React/Vue 受控组件适用） |
+| `chrome_handle_dialog` 🆕 | CDP 处理 alert/confirm/prompt/beforeunload 对话框（接受/取消） |
+
+### ✍️ 富媒体输入 (4) — 发帖/上传场景
+| 工具 | 说明 |
+|:---|:---|
+| 🆕 `chrome_paste_text` | 向富文本编辑器合成粘贴多段文本（专治 Draft.js 系编辑器如知乎/Medium），不依赖焦点、不读剪贴板 |
+| 🆕 `chrome_paste_image` | 将本地图片/base64 作为合成 paste 事件粘贴到输入框/contenteditable |
+| 🆕 `chrome_upload_file` | CDP 向 `<input type=file>` 上传文件（filePath/fileUrl/base64Data 均可） |
+| 🆕 `chrome_post_to_x` | 在已登录的 X/Twitter 发布文本帖：等待编辑框→填充→回读验证→发布→确认；结果明确返回 published/failed/unknown，unknown 不自动重试以防重复发帖 |
+
+### 📑 数据管理 (9)
+| 工具 | 说明 |
+|:---|:---|
+| `chrome_history` | 搜索浏览历史（时间范围过滤） |
+| `chrome_bookmark_search` / `chrome_bookmark_add` / `chrome_bookmark_delete` | 书签搜索/添加（含建文件夹）/删除 |
+| `chrome_cookie_get` / `chrome_cookie_set` / `chrome_cookie_delete` | Cookie 读写删：按 URL/域名/名称/存储分区筛选；支持 HttpOnly/Secure/SameSite/过期时间 |
+| 🆕 `chrome_storage_get` / `chrome_storage_set` / `chrome_storage_delete` | localStorage/sessionStorage 读写删（值按 JSON 序列化，支持批量 items） |
+
+### ⬇️ 下载与导出 (2)
+| 工具 | 说明 |
+|:---|:---|
+| 🆕 `chrome_handle_download` | 等待浏览器下载完成，返回 id/filename/url/state/size |
+| 🆕 `chrome_print_to_pdf` | CDP Page.printToPDF 打印页面为 PDF，支持 CSS 尺寸/自定义纸张/页边距/页眉脚模板 |
 
 ### 🛡️ 代理管理 (2)
 | 工具 | 说明 |
 |:---|:---|
-| 🆕 `chrome_proxy_diagnostics` | **代理诊断** — 读取代理配置及 Chrome 接管状态；`action=test` 验证代理出口 IP（v1.7.16） |
-| 🆕 `chrome_proxy_rotate` | **代理轮换** — 标签页异常时轮换代理会话并重新加载页面（不泄露账号密码，v1.8.0） |
+| `chrome_proxy_diagnostics` | 代理诊断：读代理配置及 Chrome 接管状态；action=test 验证出口 IP（不泄露账号密码） |
+| `chrome_proxy_rotate` | 标签页异常时轮换代理会话并重载页面（v1.8.0+） |
+
+### 🕷️ Profile 与批量执行 (2) — v2.1 新增
+| 工具 | 说明 |
+|:---|:---|
+| 🆕 `chrome_profile` | 管理隔离浏览器 Profile：list/create/launch/stop/delete/status/diagnostics。之后给任意普通工具传 `profileId` 即在该 Profile 中执行 |
+| 🆕 `chrome_batch` | 按顺序执行一组工具调用（calls 数组），stopOnError 默认 true；可用 profileId 将整组任务固定到独立 Profile |
 
 ### 🕸️ 抓取与提取 (14)
 | 工具 | 说明 |
 |:---|:---|
 | `chrome_get_tab_url` | 快速获取标签页 URL/标题 |
-| `chrome_scroll` | 滚动页面/容器（4 种模式+懒加载） |
-| `chrome_get_scroll_state` | 获取滚动状态 |
-| `chrome_wait` | 等待元素/JS 条件（6 种模式） |
-| `chrome_extract` | CSS 选择器提取结构化数据（8 种类型） |
-| `chrome_get_page_text` | Readability 提取文章正文 |
+| `chrome_scroll` | 滚动页面/容器：fast 默认 + human/humanFast/humanSlow 三种真人节奏模式 |
+| `chrome_get_scroll_state` | 获取滚动状态（y/maxY/atTop/atBottom） |
+| `chrome_wait` | 等待元素/JS 条件/网络响应：visible/present/hidden/gone/enabled 五态 + jsCondition + event=mutation/network 事件驱动等待 |
 | `chrome_click_and_wait` | 点击 + 等待组合操作 |
-| 🆕 `chrome_spa_fetch` | **SPA 专用**：导航+渲染+滚动+提取一步完成 |
-| 🆕 `chrome_scan_for_section` | **滚动查找区域** — 滚动直到找到目标区块（v1.6.26） |
-| 🆕 `chrome_paginate_extract` | **分页提取** — 翻页/滚动采集多页数据（v1.6.26） |
-| 🆕 `chrome_extract_records` | **提取记录** — 批量抽取结构化记录（v1.6.26） |
-| 🆕 `collect_virtual_list` | **虚拟列表采集** — 动态列表稳定抽取去重，支持小步滚动/停滞判断/向上回扫（v1.7.0） |
-| 🆕 `wait_extract_response` | **等待响应抽取** — 等待指定 JSON 响应并按 JSONPath 抽取（v1.7.0） |
-| 🆕 `detect_empty_state` | **空状态检测** — 判断页面/容器是否为空（v1.6.26） |
-| 🆕 `merge_records` | **合并记录** — 合并多轮采集结果（v1.6.26） |
+| `chrome_spa_fetch` | SPA 专用：导航+渲染+滚动+提取一步完成（X/Twitter、Reddit 等 JS 重页面） |
+| `chrome_scan_for_section` | 滚动查找目标区块，支持向上复扫 |
+| `chrome_paginate_extract` | 分页提取：翻页采集多页数据，卡片 HTML 变化后才继续 |
+| `chrome_extract_records` | 批量抽取结构化记录，支持按文本规则排除记录 |
+| `collect_virtual_list` | 虚拟列表采集：小步滚动/停滞判断/向上回扫/去重，支持状态保存恢复 |
+| 🆕 `collect_virtual_lists` | 多标签页/窗口并发虚拟列表采集（maxConcurrency 并发数控制） |
+| `wait_extract_response` | 等待指定 JSON 响应并按 JSONPath 抽取；可顺带点击确认按钮核验异步操作结果 |
+| `detect_empty_state` | 空状态检测：has_content/empty/loading_or_unknown |
+| `merge_records` | 多轮采集结果纯数据合并（身份字段去重 + 来源优先级） |
 
-### 🧩 高级辅助 (5)
+### 🧩 高级辅助 (7)
 | 工具 | 说明 |
 |:---|:---|
-| 🆕 `chrome_scoped_action` | **限定作用域操作** — 在指定容器/iframe 内执行操作（v1.6.26） |
-| 🆕 `chrome_task_context` | **任务上下文** — 传递/持久化任务状态（v1.6.26） |
-| 🆕 `chrome_diagnostic_snapshot` | **诊断快照** — 采集页面/网络/性能状态（v1.6.26） |
-| 🆕 `chrome_list_frames` | **列出框架** — 枚举页面 iframe 框架（v1.6.26） |
-| 🆕 `capture_debug_bundle` | **失败现场打包** — 截图+DOM+控制台+网络摘要保存到下载目录（v1.7.0） |
-| 🆕 `resume_tab_task` | **状态恢复** — 保存/读取/清除调用方状态（v1.7.0） |
+| `chrome_scoped_action` | 限定作用域操作（click/extract/paginate），支持 Shadow DOM 和跨域 iframe frameId |
+| `chrome_task_context` | 任务上下文：创建隔离无痕任务窗口，MCP 重启后保存标签页和抓取状态（create/get/save/clear/close） |
+| `resume_tab_task` | 普通标签页的调用方状态保存/读取/清除（save/get/clear） |
+| `chrome_diagnostic_snapshot` | 诊断快照：视口截图+DOM 快照+控制台缓冲+网络摘要 |
+| `capture_debug_bundle` | 失败现场打包：截图+DOM+控制台+脱敏网络摘要保存到下载目录 |
+| `chrome_list_frames` | 枚举页面 iframe 框架（供 scoped_action 用 frameId 定位） |
+| 🆕 `chrome_select_all_items` | 安全全选懒加载/虚拟列表条目：滚到底部等数量稳定后逐个勾选 checkbox，不依赖页面自身可能失效的全选按钮 |
+
+### 📊 性能追踪 (3) — v2.3 新增
+| 工具 | 说明 |
+|:---|:---|
+| 🆕 `performance_start_trace` | 开始性能追踪；可选自动刷新页面（reload）/定时自停（autoStop+durationMs） |
+| 🆕 `performance_stop_trace` | 停止追踪，可选保存到下载目录 |
+| 🆕 `performance_analyze_insight` | 最近一次追踪的轻量洞察摘要（CWV 等） |
+
+> 💡 执行 `node mcp-bridge.js call tools/list` 可获取实时工具列表及参数签名。详细 AI 操作指南请参阅本文件下文。
+
+### 🔑 全局公共参数（v2.1+ 所有工具通用）
+
+- `profileId` — 可选隔离 Profile ID；省略时操作当前 Chrome
+- `intent` — 可选操作意图描述，显示在浏览器状态浮层
+- `expectedUrl` — 安全护栏：仅当目标标签页 URL 以该值开头时才执行，否则拒绝调用
+- `actionPolicy` — 统一动作节奏：`fast` / `balanced`（默认）/ `human`
 
 ## 已知限制
 
@@ -450,6 +488,88 @@ $body | node mcp-bridge.js call tools/call --stdin
 # 3. 等待 JSON 响应并抽取（导航/点击后等待 API 响应）
 $body = @'
 {"name":"wait_extract_response","arguments":{"urlPattern":"*api*list*","jsonPath":"$.data.items"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+```
+
+### 视觉交互新范式（v2.0+）：read_page → computer
+
+推荐用无障碍树代替截图来"看"页面，用 `chrome_computer` 统一操作：
+
+```powershell
+# 1. 读取页面可见元素的无障碍树（返回带 ref 的元素列表）
+$body = @'
+{"name":"chrome_read_page","arguments":{"filter":"interactive"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+
+# 2. 用 ref 点击元素（也可用坐标 coordinates）
+$body = @'
+{"name":"chrome_computer","arguments":{"action":"left_click","ref":"ref_12"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+
+# 3. 截图确认页面状态
+$body = @'
+{"name":"chrome_computer","arguments":{"action":"screenshot"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+```
+
+### Profile 隔离与批量执行（v2.1+）
+
+多账号/环境隔离场景：
+
+```powershell
+# 1. 创建并启动隔离 Profile
+$body = @'
+{"name":"chrome_profile","arguments":{"action":"create","name":"work-account"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+
+# 2. 整组任务固定到该 Profile 执行
+$body = @'
+{"name":"chrome_batch","arguments":{"calls":[{"name":"chrome_navigate","arguments":{"url":"https://example.com"}},{"name":"chrome_get_page_text","arguments":{}}],"profileId":"work-account"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+
+# 3. 单个工具也可以直接传 profileId
+```
+
+### 发帖与富文本输入（v2.2+）
+
+```powershell
+# 1. 向 Draft.js 系富文本编辑器粘贴多段文本（知乎/Medium 等）
+$body = @'
+{"name":"chrome_paste_text","arguments":{"text":"第一段\n\n第二段\n\n第三段","selector":"div[contenteditable=true]"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+
+# 2. 在已登录的 X/Twitter 发布文本帖子（结果 published/failed/unknown，unknown 不重试防重复发帖）
+$body = @'
+{"name":"chrome_post_to_x","arguments":{"text":"Hello from MCP bridge!"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+
+# 3. 向文件上传控件上传文件
+$body = @'
+{"name":"chrome_upload_file","arguments":{"selector":"input[type=file]","filePath":"D:\\path\\to\\file.png"}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+```
+
+### 性能追踪（v2.3+）
+
+```powershell
+# 开始追踪（自动刷新页面，10 秒后自动停止）
+$body = @'
+{"name":"performance_start_trace","arguments":{"reload":true,"autoStop":true,"durationMs":10000}}
+'@
+$body | node mcp-bridge.js call tools/call --stdin
+
+# 查看轻量洞察摘要
+$body = @'
+{"name":"performance_analyze_insight","arguments":{}}
 '@
 $body | node mcp-bridge.js call tools/call --stdin
 ```

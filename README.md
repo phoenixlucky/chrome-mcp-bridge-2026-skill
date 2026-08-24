@@ -3,10 +3,10 @@
 <p align="center">🕷️</p>
 
 <p align="center">
-  <a href="https://img.shields.io/badge/version-3.3.1-6C47FF"><img src="https://img.shields.io/badge/version-3.3.1-6C47FF" alt="Version 3.3.1"></a>
+  <a href="https://img.shields.io/badge/version-3.4.0-6C47FF"><img src="https://img.shields.io/badge/version-3.4.0-6C47FF" alt="Version 3.4.0"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=white" alt="Node.js"></a>
   <a href="https://spec.modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-Streamable_HTTP-FF6B35?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjIgMTIuM2wtMy0zTTE3IDE4SDdNMTIgMjJsLTMtM00xMiAybC0zIDNNMiAxMi4zbDMtMyIvPjwvc3ZnPg==" alt="MCP"></a>
-  <a href="https://github.com/phoenixlucky/mcp-chrome-2026"><img src="https://img.shields.io/badge/Chrome_MCP-v2.0-4285F4?logo=googlechrome&logoColor=white" alt="Chrome MCP"></a>
+  <a href="https://github.com/phoenixlucky/mcp-chrome-2026"><img src="https://img.shields.io/badge/Chrome_MCP-v2.3-4285F4?logo=googlechrome&logoColor=white" alt="Chrome MCP"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow" alt="License"></a>
   <a href="./SKILL.md"><img src="https://img.shields.io/badge/AI-Playbook-6C47FF" alt="AI Playbook"></a>
 </p>
@@ -91,21 +91,27 @@
 
 ## 🔧 能力矩阵
 
-对接 [mcp-chrome-2026](https://github.com/phoenixlucky/mcp-chrome-2026) 服务，覆盖 **10 大类 45+ 浏览器自动化工具**（v1.8.0）：
+对接 [mcp-chrome-2026](https://github.com/phoenixlucky/mcp-chrome-2026) 服务，覆盖 **15 大类 75 个浏览器自动化工具**（v2.3.x）：
 
 | 分类 | 核心工具 | 能力 |
 |:---:|:---|:---|
-| <b>📊 浏览器管理</b> | `chrome_navigate` · `chrome_close_tabs` · `chrome_switch_tab` · `chrome_go_back_or_forward` | 页面导航、标签页管理、历史控制 |
-| <b>📸 截图视觉</b> | `chrome_screenshot` | 全页/元素截图、自定义视口、base64 输出 |
-| <b>🌐 网络监控</b> | `chrome_network_capture` · `chrome_network_request` · `chrome_block_images` · 🆕 `chrome_block_resources` | 请求捕获、自定义请求、精确资源拦截 |
-| <b>🔍 内容分析</b> | `search_tabs_content` · `chrome_get_page_text` · `chrome_extract` · `chrome_get_interactive_elements` | 语义搜索、Readability 正文解析、结构化提取、交互元素检测 |
-| <b>🎯 交互操作</b> | `chrome_click_element` · `chrome_fill_or_select` · `chrome_keyboard` · 🆕 `chrome_find_and_click` · 🆕 `chrome_expand_section` | 点击、表单填写、键盘快捷键、查找点击、展开折叠区 |
-| <b>💻 脚本执行</b> | `chrome_javascript` · `chrome_console` | 页面 JS 执行、控制台日志捕获 |
-| <b>📚 数据管理</b> | `chrome_history` · `chrome_bookmark_*` · `chrome_cookie_*` | 历史记录检索、书签 CRUD、Cookie 管理 |
-| <b>🛡️ 代理管理</b> | 🆕 `chrome_proxy_diagnostics` · 🆕 `chrome_proxy_rotate` | 代理配置诊断/出口 IP 测试、异常时轮换代理会话（v1.8.0） |
-| <b>🕸️ 采集提取</b> | `chrome_scroll` · `chrome_wait` · `chrome_extract` · `chrome_get_page_text` · `chrome_click_and_wait` · `chrome_spa_fetch` · 🆕 `collect_virtual_list` · 🆕 `chrome_paginate_extract` · 🆕 `wait_extract_response` | 滚动控制、等待元素、结构化提取、文章解析、SPA 提取、虚拟列表采集、分页提取、JSON 响应抽取 |
-| <b>🧩 高级辅助</b> | 🆕 `chrome_scoped_action` · 🆕 `chrome_task_context` · 🆕 `chrome_diagnostic_snapshot` · 🆕 `capture_debug_bundle` · 🆕 `chrome_list_frames` · 🆕 `detect_empty_state` · 🆕 `merge_records` | 限定作用域操作、任务上下文、诊断快照、失败现场打包、iframe 框架、空状态检测、记录合并 |
+| <b>📊 浏览器管理</b> | `get_windows_and_tabs` · `chrome_navigate` · 🆕 `chrome_create_tab` · `chrome_close_tabs` · `chrome_switch_tab` · `chrome_javascript` | 页面导航、标签页管理、JS 注入 |
+| <b>🤖 视觉交互新范式</b> | 🆕 `chrome_read_page` · 🆕 `chrome_computer` · 🆕 `chrome_request_element_selection` | 无障碍树读页（带 ref）、鼠标键盘综合操作、人工点选回退 |
+| <b>📸 截图视觉</b> | `chrome_screenshot` · `chrome_gif_recorder` | 全页/元素截图、GIF 录制（固定帧率/自动采集） |
+| <b>🌐 网络监控</b> | `chrome_network_capture`（v2.0 合并 start/stop/debugger） · `chrome_network_request` · `chrome_block_images` · `chrome_block_resources` | 请求捕获+响应正文、自定义请求、资源拦截 |
+| <b>🔍 内容分析</b> | `search_tabs_content` · `chrome_get_web_content` · `chrome_get_page_text` · `chrome_extract` · `chrome_console` | 语义搜索、Readability 正文解析、结构化提取、控制台采集 |
+| <b>🖱️ 交互与表单</b> | `chrome_click_element` · `chrome_fill_or_select` · `chrome_keyboard` · 🆕 `chrome_hover` · 🆕 `chrome_locate_element` · 🆕 `chrome_get_element_info` · 🆕 `chrome_get_form_value` · 🆕 `chrome_handle_dialog` | 点击、表单填写、键盘、悬停、元素定位/信息查询、对话框处理 |
+| <b>✍️ 富媒体输入</b> | 🆕 `chrome_paste_text` · 🆕 `chrome_paste_image` · 🆕 `chrome_upload_file` · 🆕 `chrome_post_to_x` | 富文本粘贴（Draft.js 系）、图片粘贴、文件上传、X 发帖 |
+| <b>📚 数据管理</b> | `chrome_history` · `chrome_bookmark_*` · `chrome_cookie_*` · 🆕 `chrome_storage_*` | 历史检索、书签 CRUD、Cookie 管理、localStorage/sessionStorage CRUD |
+| <b>⬇️ 下载导出</b> | 🆕 `chrome_handle_download` · 🆕 `chrome_print_to_pdf` | 等待下载完成、页面打印 PDF |
+| <b>🛡️ 代理管理</b> | `chrome_proxy_diagnostics` · `chrome_proxy_rotate` | 代理诊断/出口 IP 测试、异常时轮换代理会话 |
+| <b>🕸️ Profile 与批量</b> | 🆕 `chrome_profile` · 🆕 `chrome_batch` | 隔离浏览器 Profile 管理、整组任务批量执行 |
+| <b>🕸️ 采集提取</b> | `chrome_scroll` · `chrome_wait` · `chrome_extract` · `chrome_spa_fetch` · `collect_virtual_list` · 🆕 `collect_virtual_lists` · `chrome_paginate_extract` · `wait_extract_response` | 滚动控制、等待元素/网络响应、SPA 提取、虚拟列表并发采集、分页提取 |
+| <b>🧩 高级辅助</b> | `chrome_scoped_action` · `chrome_task_context` · `chrome_diagnostic_snapshot` · `capture_debug_bundle` · 🆕 `chrome_select_all_items` · `detect_empty_state` · `merge_records` | 限定作用域操作、任务上下文、诊断快照、失败现场打包、安全全选 |
+| <b>📊 性能追踪</b> | 🆕 `performance_start_trace` · 🆕 `performance_stop_trace` · 🆕 `performance_analyze_insight` | 性能追踪记录与洞察摘要 |
 
+> 🔑 **全局公共参数（v2.1+）**：所有工具支持 `profileId`（隔离环境）、`intent`（操作意图显示）、`expectedUrl`（URL 安全护栏）、`actionPolicy`（fast/balanced/human 动作节奏）。
+>
 > 💡 执行 `node mcp-bridge.js call tools/list` 可获取实时工具列表及参数签名。详细 AI 操作指南请参阅 [SKILL.md](./SKILL.md)。
 
 ---

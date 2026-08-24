@@ -138,5 +138,5 @@ Write-Host "现在你可以在任意 Reasonix 项目中调用:"
 Write-Host "  mcp__chrome-mcp-bridge__connect" -ForegroundColor $Cyan
 Write-Host ""
 Write-Host "工具列表:"
-Write-Host "  chrome_navigate / chrome_screenshot / chrome_extract ... 等 9 大类 36+ 工具" -ForegroundColor $Cyan
+Write-Host "  chrome_navigate / chrome_read_page / chrome_computer / chrome_extract ... 等 15 大类 75 个工具" -ForegroundColor $Cyan
 Write-Host ""
