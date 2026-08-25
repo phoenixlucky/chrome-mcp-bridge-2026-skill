@@ -14,7 +14,9 @@
  *   （Claude Desktop、VS Code、Cursor 等）都可以直接配置使用。
  *
  * 环境变量：
- *   MCP_SERVER_URL   - 后端 MCP 服务地址（默认 http://127.0.0.1:12306/mcp）
+ *   MCP_SERVER_URL    - 后端 MCP 服务地址（默认 http://127.0.0.1:12306/mcp）
+ *   MCP_SERVER_ORIGIN - 发往后端的 Origin（默认 http://127.0.0.1）
+ *   CHROME_MCP_API_KEY - 可选的后端 API Key（转发为 Bearer）
  *   DEBUG             - 设为 1 开启详细日志
  */
 
@@ -29,6 +31,8 @@ const { spawn } = require('child_process');
 // ── 配置 ──────────────────────────────────────────────────────────────────
 
 const MCP_URL = process.env.MCP_SERVER_URL || 'http://127.0.0.1:12306/mcp';
+const MCP_ORIGIN = process.env.MCP_SERVER_ORIGIN || 'http://127.0.0.1';
+const CHROME_MCP_API_KEY = process.env.CHROME_MCP_API_KEY?.trim();
 const DEFAULT_TOOL_TIMEOUT_MS = 60_000;
 const LONG_TOOL_TIMEOUT_MS = 120_000;
 const MIN_TOOL_TRANSPORT_TIMEOUT_MS = 20_000;
@@ -196,7 +200,9 @@ async function sendRequest(method, params = {}, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'text/event-stream, application/json',
+    Origin: MCP_ORIGIN,
   };
+  if (CHROME_MCP_API_KEY) headers.Authorization = `Bearer ${CHROME_MCP_API_KEY}`;
   if (sessionId && method !== 'initialize') headers['Mcp-Session-Id'] = sessionId;
 
   const isNotification = method === 'close' || method.startsWith('notifications/');
@@ -793,6 +799,8 @@ mcp-bridge.js — Streamable HTTP MCP 桥接工具 (v${SERVER_VERSION})
 
 环境变量:
   MCP_SERVER_URL                    后端 MCP 服务地址（默认 ${MCP_URL}）
+  MCP_SERVER_ORIGIN                 后端 Origin（默认 ${MCP_ORIGIN}）
+  CHROME_MCP_API_KEY                可选后端 API Key（Bearer 转发）
   DEBUG                             设为 1 开启调试日志
 
 --stdin 示例（推荐，避免 shell 转义）:

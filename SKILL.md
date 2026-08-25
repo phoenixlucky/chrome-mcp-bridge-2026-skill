@@ -1,6 +1,6 @@
 ---
 name: chrome-mcp-bridge-2026-skill
-description: 通过 Node.js 桥接脚本稳定连接 streamable-http MCP 服务（自动管理 session ID、支持所有 JSON-RPC 方法），支持 --server 模式作为标准 MCP Server 供任意 AI 客户端使用
+description: 使用上游原生 mcp-chrome-stdio 连接 Streamable HTTP MCP 服务；mcp-bridge.js 仅作为旧客户端和 CLI 的兼容回退
 version: 3.4.0
 ---
 
@@ -35,6 +35,8 @@ version: 3.4.0
 >
 > 🔧 **使用方式：** 见下方"自动配置"和"CLI 速查"。
 
+> ✅ **默认入口：** `mcp-chrome-stdio` 使用官方 `StreamableHTTPClientTransport` 处理 HTTP POST、SSE 和 sessionId 生命周期，不再依赖外部 `mcp-bridge.js`。`MCP_SERVER_URL`、`MCP_SERVER_ORIGIN` 覆盖需要上游 **2.4.1+**；`CHROME_MCP_API_KEY` 可选。
+
 ---
 
 ## 📦 安装（首次使用执行）
@@ -48,7 +50,7 @@ version: 3.4.0
 
 > ### ⚠️ 修改 / 更新本技能后：必须重启「指南助手」应用，而不是新开对话框！
 >
-> `mcp-bridge.js` 是随 **Reasonix 应用进程（`reasonix-desktop.exe`）启动时** spawn 并长驻的 MCP 插件进程。
+> 原生 `mcp-chrome-stdio` 是随 **Reasonix 应用进程（`reasonix-desktop.exe`）启动时** spawn 的 MCP 插件进程。
 > **新开对话框/话题不会重新加载脚本**——只有**完全退出并重新打开 Reasonix 应用**才生效。
 >
 > 正确操作：
@@ -63,57 +65,36 @@ version: 3.4.0
 
 > AI 代理：首次使用本 skill 时，执行以下 setup。之后可跳过。
 
-### Step 1：定位桥接脚本
+### Step 1：确认原生 stdio 入口
 
 ```powershell
-# 搜索可能的安装位置
-$paths = @(
-    "mcp-bridge.js",
-    "$PWD/mcp-bridge.js",
-    "$env:APPDATA/reasonix/skills/chrome-mcp-bridge-2026-skill/mcp-bridge.js",
-    "$env:LOCALAPPDATA/reasonix/skills/chrome-mcp-bridge-2026-skill/mcp-bridge.js"
-)
-$scriptPath = $null
-foreach ($p in $paths) {
-    if (Test-Path $p) { $scriptPath = (Resolve-Path $p).Path; break }
-}
-if (-not $scriptPath) {
-    Write-Error "未找到 mcp-bridge.js，请确认 skill 已正确安装"
-    exit 1
-}
-Write-Output "找到桥接脚本: $scriptPath"
+Get-Command mcp-chrome-stdio
 ```
 
-### Step 2：验证脚本可用
-
-```powershell
-$absPath = node $scriptPath path
-Write-Output "脚本绝对路径: $absPath"
-```
-
-### Step 3：从模板生成 `.mcp.json` 到项目根目录
+### Step 2：从模板生成 `.mcp.json` 到项目根目录
 
 > 仓库内**不直接存放 `.mcp.json`**（会被 Reasonix 等智能助手自动扫描并启动 MCP 服务），只提供模板 `.mcp.json.example`。只有执行本步骤（即"安装"动作）时才生成实际的 `.mcp.json`。
 
 ```powershell
-# 定位模板文件（与 mcp-bridge.js 同目录）
-$templatePath = Join-Path (Split-Path $scriptPath) ".mcp.json.example"
+# 定位模板文件（优先当前项目，其次全局 skill 目录）
+$templatePath = @(
+    (Join-Path (Get-Location) ".mcp.json.example"),
+    "$env:APPDATA\reasonix\global-workspace\.reasonix\skills\chrome-mcp-bridge-2026-skill\.mcp.json.example"
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not (Test-Path $templatePath)) {
     Write-Error "未找到模板 .mcp.json.example（$templatePath）"
     exit 1
 }
 $mcpConfig = Get-Content $templatePath -Raw
-$mcpConfig = $mcpConfig.Replace('__BRIDGE_PATH__', $absPath.Replace('\', '\\'))
 
 $targetPath = Join-Path (Get-Location) ".mcp.json"
 if (Test-Path $targetPath) {
     $existing = Get-Content $targetPath -Raw | ConvertFrom-Json
     if ($existing.mcpServers -and $existing.mcpServers.chrome) {
-        $configuredArgs = @($existing.mcpServers.chrome.args)
-        if ($configuredArgs -contains ".reasonix/skills/chrome-mcp-bridge-2026-skill/mcp-bridge.js") {
+        if ($existing.mcpServers.chrome.command -eq "node") {
             $existing.mcpServers.chrome = ($mcpConfig | ConvertFrom-Json).mcpServers.chrome
             $existing | ConvertTo-Json -Depth 10 | Set-Content $targetPath -Encoding UTF8
-            Write-Output "已修复旧的 chrome MCP 路径"
+            Write-Output "已切换旧的 chrome MCP 配置到原生 stdio"
         } else {
             Write-Output "chrome MCP 服务已在 .mcp.json 中配置，跳过"
         }
@@ -129,12 +110,12 @@ if (Test-Path $targetPath) {
     Write-Output "已创建 .mcp.json（项目根目录）"
 }
 Write-Output ""
-Write-Output "✅ 配置完成！现在你的 AI 客户端可以自动发现 Chrome 桥接服务。"
+Write-Output "✅ 配置完成！现在你的 AI 客户端可以自动发现原生 Chrome MCP 服务。"
 Write-Output "   如需修改后端地址，在 .mcp.json 的 env 中添加:"
-Write-Output '     "env": { "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp" }'
+Write-Output '     "env": { "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp", "MCP_SERVER_ORIGIN": "http://127.0.0.1" }'
 ```
 
-### Step 4：注册猫娘搜索身份（全局记忆）
+### Step 3：注册猫娘搜索身份（全局记忆）
 
 > ⚠️ **关键步骤：** 将猫娘搜索身份写入全局记忆，确保跨项目、跨会话生效。脚本会自动检测并写入所有已知的全局记忆目录。
 
@@ -206,7 +187,9 @@ Write-Output "就以猫娘风格用浏览器搜索后回复吧~"
 
 > 🐱 **初始化完成！** 你现在是 **猫娘搜索**（已写入全局记忆）。以后在任何项目中，用户说"猫娘搜索xxx"或"使用猫娘搜下"时，都以猫娘风格用浏览器搜索后回复吧~
 
-## CLI 速查
+## Legacy bridge CLI 速查
+
+以下命令仅用于旧客户端、手动 JSON-RPC 和诊断；默认 MCP 客户端应直接启动 `mcp-chrome-stdio`。
 
 ```powershell
 # ── 建立连接 ──
@@ -398,7 +381,7 @@ $body | node mcp-bridge.js call tools/call --stdin
 
 ### MCP 实时进度
 
-MCP 本身支持 `notifications/progress`。本技能的 `mcp-bridge.js` 会在 `--server` 模式下增量读取后端 SSE，并转发无 `id` 的 JSON-RPC 通知；CLI 模式则将通知写入 stderr。调用工具时必须在 `_meta.progressToken` 中提供令牌，客户端也必须支持显示进度通知。
+MCP 本身支持 `notifications/progress`。原生 `mcp-chrome-stdio` 由官方 SDK 处理后端 SSE 和进度通知；旧版 `mcp-bridge.js` 的 `--server` 模式也会转发无 `id` 的 JSON-RPC 通知。调用工具时必须在 `_meta.progressToken` 中提供令牌，客户端也必须支持显示进度通知。
 
 进度通知是旁路消息，工具最终结果仍会正常返回。实时批次数据是否能被客户端展示，取决于客户端是否支持自定义通知；因此采集工具仍保留最终结果中的 `batches` 字段作为兜底。
 
@@ -605,15 +588,19 @@ $body | node mcp-bridge.js call tools/call --stdin
 
 ## 技术原理
 
-1. AI 客户端通过 **stdio 协议**连接到本脚本
-2. 本脚本内部通过 **HTTP POST + SSE** 连接到实际的 MCP 服务
-3. 自动管理 `Mcp-Session-Id` 头的传递和持久化（保存到临时文件）
-4. 遇到 session 过期自动重建
+默认路径由上游 `mcp-chrome-stdio` 完成：
+
+1. AI 客户端通过 **stdio 协议**连接到 `mcp-chrome-stdio`
+2. 官方 `StreamableHTTPClientTransport` 通过 **HTTP POST + SSE** 连接实际 MCP 服务
+3. SDK 负责 `Mcp-Session-Id` 生命周期和恢复
+4. `MCP_SERVER_ORIGIN` 与 `CHROME_MCP_API_KEY` 由原生入口转发；需要上游 2.4.1+
+
+旧版 `mcp-bridge.js` 保留相同的兼容代理能力，并额外支持 CLI 调试。
 
 ```
 ┌─────────────────┐    stdin/stdout     ┌──────────────────┐    HTTP POST+SSE    ┌──────────────────────┐
-│  AI 客户端       │ ◄──── MCP ────────► │  mcp-bridge.js   │ ◄──── 代理 ───────► │  mcp-chrome-2026     │
-│ (Claude/Cursor/) │   (stdio 协议)     │  (session 管理)   │                     │  (streamable-http)   │
+│  AI 客户端       │ ◄──── MCP ────────► │ mcp-chrome-stdio │ ◄──── SDK Transport ─► │  mcp-chrome-2026     │
+│ (Claude/Cursor/) │   (stdio 协议)     │ (official SDK)    │                     │  (streamable-http)   │
 └─────────────────┘                     └──────────────────┘                     └──────────────────────┘
 ```
 
@@ -624,4 +611,6 @@ $body | node mcp-bridge.js call tools/call --stdin
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `MCP_SERVER_URL` | `http://127.0.0.1:12306/mcp` | 后端 MCP 服务地址 |
+| `MCP_SERVER_ORIGIN` | `http://127.0.0.1` | 后端允许的 Origin（原生入口 2.4.1+ 支持覆盖） |
+| `CHROME_MCP_API_KEY` | _(空)_ | 可选 API Key，原生入口和 legacy bridge 均转发为 Bearer |
 | `DEBUG` | 空 | 设为 `1` 开启调试日志 |

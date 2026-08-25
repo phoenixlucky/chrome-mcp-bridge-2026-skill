@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
   chrome-mcp-bridge-2026-skill 安装脚本
-  自动同步文件到 Reasonix 全局 skill 目录
+  安装原生 mcp-chrome-stdio 并同步 MCP 配置模板
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -27,13 +27,18 @@ Write-Host ""
 Write-Host "📦 chrome-mcp-bridge-2026-skill 安装" -ForegroundColor $Cyan
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor $Cyan
 
-# ── Step 1: 确保 npm 包已安装 ────────────────────────────────────────
-Write-Step "检查 @ethanwilkins/mcp-chrome-bridge-2026..."
+# ── Step 1: 确保原生 stdio 包已安装 ──────────────────────────────────
+Write-Step "检查 mcp-chrome-stdio（@ethanwilkins/mcp-chrome-bridge-2026）..."
+$minimumNativeVersion = [version]'2.4.1'
 $npmVer = npm list -g @ethanwilkins/mcp-chrome-bridge-2026 2>&1 | Select-String "2026@"
-if ($npmVer) {
-  Write-OK "已安装: $($npmVer.ToString().Trim())"
+$installedVersion = $null
+if ($npmVer -and $npmVer.ToString() -match '@(?<Version>\d+\.\d+\.\d+)') {
+  $installedVersion = [version]$Matches.Version
+}
+if ($installedVersion -and $installedVersion -ge $minimumNativeVersion) {
+  Write-OK "已安装: v$installedVersion"
 } else {
-  Write-Step "正在全局安装 @ethanwilkins/mcp-chrome-bridge-2026@latest..."
+  Write-Step "正在全局安装 @ethanwilkins/mcp-chrome-bridge-2026@latest（需要 >= v$minimumNativeVersion）..."
   npm install -g @ethanwilkins/mcp-chrome-bridge-2026@latest 2>&1 | Out-Null
   if ($LASTEXITCODE -eq 0) {
     $ver = npm view @ethanwilkins/mcp-chrome-bridge-2026 version 2>&1
@@ -69,10 +74,9 @@ foreach ($f in $files) {
 }
 Write-OK "已同步 $copied 个文件"
 
-# ── Step 4: 注册到 Reasonix 全局配置 ────────────────────────────────
+# ── Step 4: 注册原生 stdio 到 Reasonix 全局配置 ──────────────────────
 Write-Step "检查全局 MCP 插件注册..."
-$pluginName = "chrome-mcp-bridge"
-$mcpBridgePath = "$GlobalSkillDir\mcp-bridge.js"
+$pluginName = "chrome-mcp-stdio"
 
 if (Test-Path $GlobalConfigFile) {
   $config = Get-Content $GlobalConfigFile -Raw
@@ -84,8 +88,8 @@ if (Test-Path $GlobalConfigFile) {
 
 [[plugins]]
 name    = "$pluginName"
-command = "node"
-args    = ["$mcpBridgePath", "--server"]
+command = "mcp-chrome-stdio"
+args    = []
 call_timeout_seconds = 300
 "@
     Add-Content -Path $GlobalConfigFile -Value $pluginBlock
@@ -102,6 +106,10 @@ try {
   $testReq.Method = "POST"
   $testReq.ContentType = "application/json"
   $testReq.Accept = "text/event-stream, application/json"
+  $testReq.Headers.Add("Origin", $(if ($env:MCP_SERVER_ORIGIN) { $env:MCP_SERVER_ORIGIN } else { "http://127.0.0.1" }))
+  if ($env:CHROME_MCP_API_KEY) {
+    $testReq.Headers.Add("Authorization", "Bearer $($env:CHROME_MCP_API_KEY)")
+  }
   $testReq.Timeout = 3000
   $testBody = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"install-probe","version":"1.0"}}}'
   $bytes = [System.Text.Encoding]::UTF8.GetBytes($testBody)
@@ -134,9 +142,9 @@ Write-Host ""
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor $Cyan
 Write-Host "🎉 安装完成！" -ForegroundColor $Green
 Write-Host ""
-Write-Host "现在你可以在任意 Reasonix 项目中调用:"
-Write-Host "  mcp__chrome-mcp-bridge__connect" -ForegroundColor $Cyan
+Write-Host "现在 Reasonix 将直接启动原生 stdio MCP 服务:"
+Write-Host "  mcp-chrome-stdio" -ForegroundColor $Cyan
 Write-Host ""
 Write-Host "工具列表:"
-Write-Host "  chrome_navigate / chrome_read_page / chrome_computer / chrome_extract ... 等 15 大类 75 个工具" -ForegroundColor $Cyan
+Write-Host "  chrome_navigate / chrome_read_page / chrome_computer / chrome_extract ...（由后端动态提供）" -ForegroundColor $Cyan
 Write-Host ""
