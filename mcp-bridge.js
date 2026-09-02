@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * mcp-bridge.js — Streamable HTTP MCP 桥接脚本 (v3.4.0)
+ * mcp-bridge.js — Streamable HTTP MCP 桥接脚本 (v3.5.0)
  *
  * 一个通用的 MCP 协议桥接工具，支持两种运行模式：
  *
@@ -14,9 +14,10 @@
  *   （Claude Desktop、VS Code、Cursor 等）都可以直接配置使用。
  *
  * 环境变量：
- *   MCP_SERVER_URL    - 后端 MCP 服务地址（默认 http://127.0.0.1:12306/mcp）
+ *   MCP_SERVER_URL    - 后端 MCP 服务地址（默认 http://127.0.0.1:12306/mcp-new）
  *   MCP_SERVER_ORIGIN - 发往后端的 Origin（默认 http://127.0.0.1）
  *   CHROME_MCP_API_KEY - 可选的后端 API Key（转发为 Bearer）
+ *   MCP_PROTOCOL_MODE - auto（默认）、stateless 或 legacy
  *   DEBUG             - 设为 1 开启详细日志
  */
 
@@ -30,9 +31,17 @@ const { spawn } = require('child_process');
 
 // ── 配置 ──────────────────────────────────────────────────────────────────
 
-const MCP_URL = process.env.MCP_SERVER_URL || 'http://127.0.0.1:12306/mcp';
+const MCP_URL = process.env.MCP_SERVER_URL || 'http://127.0.0.1:12306/mcp-new';
 const MCP_ORIGIN = process.env.MCP_SERVER_ORIGIN || 'http://127.0.0.1';
 const CHROME_MCP_API_KEY = process.env.CHROME_MCP_API_KEY?.trim();
+const MCP_PROTOCOL_MODE = (process.env.MCP_PROTOCOL_MODE || 'auto').trim().toLowerCase();
+const MCP_SERVER_PATH = (() => {
+  try { return new URL(MCP_URL).pathname.replace(/\/$/, '') || '/'; } catch { return ''; }
+})();
+const USE_STATELESS_PROTOCOL = MCP_PROTOCOL_MODE === 'stateless'
+  || (MCP_PROTOCOL_MODE !== 'legacy' && MCP_SERVER_PATH === '/mcp-new');
+const MCP_PROTOCOL_VERSION = process.env.MCP_PROTOCOL_VERSION
+  || (USE_STATELESS_PROTOCOL ? '2026-07-28' : '2025-11-25');
 const DEFAULT_TOOL_TIMEOUT_MS = 60_000;
 const LONG_TOOL_TIMEOUT_MS = 120_000;
 const MIN_TOOL_TRANSPORT_TIMEOUT_MS = 20_000;
@@ -41,16 +50,16 @@ const MAX_RETRIES = 2;
 const STDIN_TIMEOUT_MS = 3000;
 const SESSION_FILE = path.join(os.tmpdir(), 'mcp-bridge-session.json');
 const SERVER_NAME = 'mcp-bridge-server';
-const SERVER_VERSION = '3.4.0';
+const SERVER_VERSION = '3.5.0';
 const BACKEND_CLIENT_NAME = 'mcp-bridge-backend';
-const BACKEND_CLIENT_VERSION = '3.4.0';
+const BACKEND_CLIENT_VERSION = '3.5.0';
 
 // MCP 协议版本协商 — 与服务端 SDK 列表保持一致
 const SUPPORTED_PROTOCOL_VERSIONS = [
-  '2025-11-25', '2025-06-18', '2025-03-26',
+  '2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26',
   '2024-11-05', '2024-10-07',
 ];
-const LATEST_PROTOCOL_VERSION = '2025-11-25';
+const LATEST_PROTOCOL_VERSION = '2026-07-28';
 /** 本次会话协商确定的协议版本（在 initialize 时确定） */
 let negotiatedProtocolVersion = LATEST_PROTOCOL_VERSION;
 let requestSequence = 0;
@@ -195,20 +204,53 @@ function timeoutFor(method, params = {}) {
     : ceiling;
 }
 
+function backendParams(params = {}) {
+  if (!USE_STATELESS_PROTOCOL) return params;
+  const meta = params && typeof params._meta === 'object' && params._meta !== null
+    ? params._meta
+    : {};
+  return {
+    ...params,
+    _meta: {
+      ...meta,
+      'io.modelcontextprotocol/protocolVersion': MCP_PROTOCOL_VERSION,
+      'io.modelcontextprotocol/clientInfo': {
+        name: BACKEND_CLIENT_NAME,
+        version: BACKEND_CLIENT_VERSION,
+      },
+      'io.modelcontextprotocol/clientCapabilities': {},
+    },
+  };
+}
+
+function backendMethodHeaders(method, params) {
+  if (!USE_STATELESS_PROTOCOL) return {};
+  const headers = {
+    'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
+    'Mcp-Method': method,
+  };
+  if (method === 'tools/call' && params?.name) headers['Mcp-Name'] = params.name;
+  return headers;
+}
+
 async function sendRequest(method, params = {}, options = {}) {
-  const sessionId = loadSession();
+  const sessionId = USE_STATELESS_PROTOCOL ? null : loadSession();
+  const requestParams = backendParams(params);
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'text/event-stream, application/json',
     Origin: MCP_ORIGIN,
+    ...backendMethodHeaders(method, requestParams),
   };
   if (CHROME_MCP_API_KEY) headers.Authorization = `Bearer ${CHROME_MCP_API_KEY}`;
-  if (sessionId && method !== 'initialize') headers['Mcp-Session-Id'] = sessionId;
+  if (!USE_STATELESS_PROTOCOL && sessionId && method !== 'initialize') {
+    headers['Mcp-Session-Id'] = sessionId;
+  }
 
   const isNotification = method === 'close' || method.startsWith('notifications/');
   const body = isNotification
-    ? { jsonrpc: '2.0', method, params }
-    : { jsonrpc: '2.0', id: `${Date.now()}-${++requestSequence}`, method, params };
+    ? { jsonrpc: '2.0', method, params: requestParams }
+    : { jsonrpc: '2.0', id: `${Date.now()}-${++requestSequence}`, method, params: requestParams };
 
   const requestTimeoutMs = timeoutFor(method, params);
   const controller = new AbortController();
@@ -227,8 +269,12 @@ async function sendRequest(method, params = {}, options = {}) {
     throw new Error(`网络错误: ${err.message}`);
   }
   try {
+    if (!response.ok) {
+      const detail = (await response.text()).trim().replace(/\s+/g, ' ').slice(0, 300);
+      throw new Error(`MCP HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
     const newSessionId = response.headers.get('Mcp-Session-Id');
-    if (newSessionId) saveSession(newSessionId);
+    if (!USE_STATELESS_PROTOCOL && newSessionId) saveSession(newSessionId);
 
     const contentType = (response.headers.get('Content-Type') || '').toLowerCase();
 
@@ -262,10 +308,10 @@ async function callWithRetry(method, params = {}, options = {}) {
       return await sendRequest(method, params, options);
     } catch (err) {
       lastError = err;
-      if (err.isSessionError || (err.message && (
+      if (!USE_STATELESS_PROTOCOL && (err.isSessionError || (err.message && (
         err.message.toLowerCase().includes('session') ||
         err.message.toLowerCase().includes('invalid mcp')
-      ))) {
+      )))) {
         clearSession();
         if (attempt <= MAX_RETRIES) {
           console.error(`[桥接] Session 已过期，清理后重试 (${attempt}/${MAX_RETRIES})...`);
@@ -273,11 +319,7 @@ async function callWithRetry(method, params = {}, options = {}) {
         }
         console.error('[桥接] Session 重试耗尽，尝试重新初始化...');
         try {
-          await sendRequest('initialize', {
-            protocolVersion: LATEST_PROTOCOL_VERSION,
-            capabilities: { roots: { listChanged: false }, sampling: {} },
-            clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
-          });
+          await sendRequest('initialize', legacyInitializeParams());
           console.error('[桥接] 重新初始化成功，重试原请求...');
           return await sendRequest(method, params, options);
         } catch (initErr) {
@@ -294,6 +336,20 @@ async function callWithRetry(method, params = {}, options = {}) {
   throw lastError;
 }
 
+function legacyInitializeParams() {
+  return {
+    protocolVersion: MCP_PROTOCOL_VERSION,
+    capabilities: { roots: { listChanged: false }, sampling: {} },
+    clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
+  };
+}
+
+async function initializeBackend() {
+  return USE_STATELESS_PROTOCOL
+    ? callWithRetry('server/discover')
+    : callWithRetry('initialize', legacyInitializeParams());
+}
+
 // ── 从 stdin 读取 JSON（CLI --stdin 模式）────────────────────────────────
 
 function readStdin() {
@@ -302,16 +358,18 @@ function readStdin() {
       return reject(new Error('stdin 模式需要管道输入，例如: echo \'{"key":"value"}\' | node mcp-bridge.js call ... --stdin'));
     }
     const chunks = [];
+    let timeout;
     process.stdin.setEncoding('utf-8');
     process.stdin.on('data', chunk => chunks.push(chunk));
     process.stdin.on('end', () => {
+      clearTimeout(timeout);
       const input = chunks.join('').trim();
       if (!input) return reject(new Error('stdin 为空'));
       try { resolve(JSON.parse(input)); }
       catch (e) { reject(new Error(`stdin 内容不是有效 JSON: ${e.message}`)); }
     });
-    process.stdin.on('error', reject);
-    setTimeout(() => {
+    process.stdin.on('error', err => { clearTimeout(timeout); reject(err); });
+    timeout = setTimeout(() => {
       if (!process.stdin.readableEnded) { process.stdin.destroy(); reject(new Error(`stdin 读取超时 (${STDIN_TIMEOUT_MS}ms)`)); }
     }, STDIN_TIMEOUT_MS);
   });
@@ -448,6 +506,47 @@ function extractTools(backendResult) {
   return [];
 }
 
+let toolsCache = null;
+let toolsCacheExpiresAt = 0;
+
+async function listTools() {
+  if (USE_STATELESS_PROTOCOL && toolsCache && toolsCacheExpiresAt > Date.now()) {
+    return toolsCache;
+  }
+
+  const result = await callWithRetry('tools/list');
+  const payload = result && typeof result === 'object' && !Array.isArray(result)
+    ? { ...result, tools: extractTools(result) }
+    : { tools: extractTools(result) };
+  const ttlMs = Number(payload.ttlMs);
+  if (USE_STATELESS_PROTOCOL && Number.isFinite(ttlMs) && ttlMs > 0) {
+    toolsCache = payload;
+    toolsCacheExpiresAt = Date.now() + ttlMs;
+  }
+  return payload;
+}
+
+function writeBackendResult(id, result) {
+  writeMcpMessage({ jsonrpc: '2.0', id, result });
+}
+
+function writeBackendError(id, err) {
+  writeMcpMessage({
+    jsonrpc: '2.0',
+    id,
+    error: err.jsonRpcError || { code: -32603, message: err.message },
+  });
+}
+
+async function forwardRequest(id, method, params, options = {}) {
+  try {
+    const result = await callWithRetry(method, params, options);
+    writeBackendResult(id, result);
+  } catch (err) {
+    writeBackendError(id, err);
+  }
+}
+
 /** 处理单个 MCP 请求 */
 async function handleRequest(id, method, params) {
   debug('收到请求:', method, JSON.stringify(params).substring(0, 200));
@@ -468,8 +567,10 @@ async function handleRequest(id, method, params) {
           protocolVersion: negotiated,
           capabilities: {
             tools: {},
-            roots: { listChanged: false },
-            sampling: {},
+            ...(USE_STATELESS_PROTOCOL ? {} : {
+              roots: { listChanged: false },
+              sampling: {},
+            }),
           },
           serverInfo: {
             name: SERVER_NAME,
@@ -481,10 +582,8 @@ async function handleRequest(id, method, params) {
     }
 
     case 'tools/list': {
-      let tools = [];
       try {
-        const result = await callWithRetry('tools/list');
-        tools = extractTools(result);
+        writeBackendResult(id, await listTools());
       } catch (err) {
         console.error(`[mcp-server] tools/list 代理失败: ${err.message}`);
         writeMcpMessage({
@@ -492,13 +591,7 @@ async function handleRequest(id, method, params) {
           id,
           error: { code: -32603, message: `Backend tools/list failed: ${err.message}` },
         });
-        return;
       }
-      writeMcpMessage({
-        jsonrpc: '2.0',
-        id,
-        result: { tools },
-      });
       return;
     }
 
@@ -513,48 +606,37 @@ async function handleRequest(id, method, params) {
         return;
       }
       try {
-        const callParams = {
-          name,
-          arguments: args || {},
-          ...(params && params._meta ? { _meta: params._meta } : {}),
-        };
+        const callParams = USE_STATELESS_PROTOCOL
+          ? { ...params, name, arguments: args || {} }
+          : {
+              name,
+              arguments: args || {},
+              ...(params && params._meta ? { _meta: params._meta } : {}),
+            };
         const result = await callWithRetry('tools/call', callParams, {
           onNotification: (notification) => writeMcpMessage(notification),
         });
 
-        // 标准 MCP 响应：content 数组
-        let content;
-        if (result && Array.isArray(result.content)) {
-          content = result.content;
-        } else {
-          const text = typeof result === 'string'
-            ? result
-            : JSON.stringify(result, null, 2);
-          content = [{ type: 'text', text }];
-        }
-
-        // 检查是否有 isError 标记
-        const response = { content };
-        if (result && result.isError) {
-          response.isError = true;
-        }
-
-        writeMcpMessage({
-          jsonrpc: '2.0',
-          id,
-          result: response,
-        });
+        // 新协议的 input_required/task/resultType 字段必须完整透传。
+        const response = result && typeof result === 'object' && !Array.isArray(result)
+          && (Array.isArray(result.content) || result.resultType || result.task)
+          ? result
+          : { content: [{
+              type: 'text',
+              text: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
+            }] };
+        writeBackendResult(id, response);
       } catch (err) {
-        writeMcpMessage({
-          jsonrpc: '2.0',
-          id,
-          error: { code: -32603, message: err.message },
-        });
+        writeBackendError(id, err);
       }
       return;
     }
 
     case 'ping':
+      if (USE_STATELESS_PROTOCOL) {
+        await forwardRequest(id, method, params);
+        return;
+      }
       writeMcpMessage({
         jsonrpc: '2.0',
         id,
@@ -562,33 +644,39 @@ async function handleRequest(id, method, params) {
       });
       return;
 
+    case 'server/discover':
     case 'resources/list':
-      writeMcpMessage({
-        jsonrpc: '2.0',
-        id,
-        result: { resources: [] },
-      });
-      return;
-
+    case 'resources/read':
     case 'prompts/list':
-      writeMcpMessage({
-        jsonrpc: '2.0',
-        id,
-        result: { prompts: [] },
-      });
+    case 'prompts/get':
+    case 'tasks/get':
+    case 'tasks/update':
+    case 'tasks/result':
+      if (USE_STATELESS_PROTOCOL) {
+        await forwardRequest(id, method, params);
+        return;
+      }
+      if (method === 'resources/list') {
+        writeMcpMessage({ jsonrpc: '2.0', id, result: { resources: [] } });
+      } else if (method === 'prompts/list') {
+        writeMcpMessage({ jsonrpc: '2.0', id, result: { prompts: [] } });
+      } else {
+        writeMcpMessage({
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32601, message: `Method not found: ${method}` },
+        });
+      }
       return;
 
     default:
-      writeMcpMessage({
-        jsonrpc: '2.0',
-        id,
-        error: { code: -32601, message: `Method not found: ${method}` },
-      });
+      // Forward extensions and future MCP methods without another bridge release.
+      await forwardRequest(id, method, params);
   }
 }
 
 /** 快速探测后端 MCP 服务是否存活（短超时）
- *  用 TCP 连接检测端口是否开放，不发送任何 MCP 请求，避免干扰 session */
+ *  用 TCP 连接检测端口是否开放，不发送任何 MCP 请求，避免干扰服务 */
 async function probeBackend(url, timeoutMs = 3000) {
   try {
     const urlObj = new URL(url);
@@ -698,15 +786,11 @@ async function startMcpServer() {
 
     try {
       console.error('[mcp-server] 正在连接后端 MCP 服务...');
-      const initResult = await callWithRetry('initialize', {
-        protocolVersion: LATEST_PROTOCOL_VERSION,
-        capabilities: { roots: { listChanged: false }, sampling: {} },
-        clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
-      });
+      const initResult = await initializeBackend();
       console.error('[mcp-server] 后端 MCP 连接成功');
 
       try {
-        const toolsResult = await callWithRetry('tools/list');
+        const toolsResult = await listTools();
         backendTools = extractTools(toolsResult);
         console.error(`[mcp-server] 已加载 ${backendTools.length} 个工具`);
       } catch (err) {
@@ -732,8 +816,10 @@ async function startMcpServer() {
     } catch (err) {
       if (err.message === 'stdin closed') {
         console.error('[mcp-server] stdin 关闭，优雅退出');
-        try { await sendRequest('close'); } catch {}
-        clearSession();
+        if (!USE_STATELESS_PROTOCOL) {
+          try { await sendRequest('close'); } catch {}
+        }
+        if (!USE_STATELESS_PROTOCOL) clearSession();
         process.exit(0);
       }
       console.error(`[mcp-server] 读取消息失败: ${err.message}`);
@@ -800,6 +886,8 @@ mcp-bridge.js — Streamable HTTP MCP 桥接工具 (v${SERVER_VERSION})
 环境变量:
   MCP_SERVER_URL                    后端 MCP 服务地址（默认 ${MCP_URL}）
   MCP_SERVER_ORIGIN                 后端 Origin（默认 ${MCP_ORIGIN}）
+  MCP_PROTOCOL_MODE                 auto、stateless 或 legacy（默认 auto）
+  MCP_PROTOCOL_VERSION              请求协议版本（默认 ${MCP_PROTOCOL_VERSION}）
   CHROME_MCP_API_KEY                可选后端 API Key（Bearer 转发）
   DEBUG                             设为 1 开启调试日志
 
@@ -836,11 +924,7 @@ ${psHint}`);
     let result;
     switch (command) {
       case 'init':
-        result = await callWithRetry('initialize', {
-          protocolVersion: LATEST_PROTOCOL_VERSION,
-          capabilities: { roots: { listChanged: false }, sampling: {} },
-          clientInfo: { name: BACKEND_CLIENT_NAME, version: BACKEND_CLIENT_VERSION },
-        });
+        result = await initializeBackend();
         if (result && result.protocolVersion) {
           negotiatedProtocolVersion = result.protocolVersion;
         }
@@ -893,9 +977,11 @@ ${psHint}`);
         break;
 
       case 'close':
-        try { await sendRequest('close'); } catch {}
-        clearSession();
-        console.log('连接已关闭，session 已清理');
+        if (!USE_STATELESS_PROTOCOL) {
+          try { await sendRequest('close'); } catch {}
+          clearSession();
+        }
+        console.log(USE_STATELESS_PROTOCOL ? '无状态连接已关闭' : '连接已关闭，session 已清理');
         process.exit(0);
         break;
 

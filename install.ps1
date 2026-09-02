@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
   chrome-mcp-bridge-2026-skill 安装脚本
-  安装原生 mcp-chrome-stdio 并同步 MCP 配置模板
+  安装上游 Chrome MCP 服务并同步 /mcp-new 配置模板
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -27,8 +27,8 @@ Write-Host ""
 Write-Host "📦 chrome-mcp-bridge-2026-skill 安装" -ForegroundColor $Cyan
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor $Cyan
 
-# ── Step 1: 确保原生 stdio 包已安装 ──────────────────────────────────
-Write-Step "检查 mcp-chrome-stdio（@ethanwilkins/mcp-chrome-bridge-2026）..."
+# ── Step 1: 确保上游 Chrome MCP 包已安装 ──────────────────────────────
+Write-Step "检查上游 Chrome MCP（@ethanwilkins/mcp-chrome-bridge-2026）..."
 $minimumNativeVersion = [version]'2.4.1'
 $npmVer = npm list -g @ethanwilkins/mcp-chrome-bridge-2026 2>&1 | Select-String "2026@"
 $installedVersion = $null
@@ -74,9 +74,10 @@ foreach ($f in $files) {
 }
 Write-OK "已同步 $copied 个文件"
 
-# ── Step 4: 注册原生 stdio 到 Reasonix 全局配置 ──────────────────────
+# ── Step 4: 注册无状态 bridge 到 Reasonix 全局配置 ────────────────────
 Write-Step "检查全局 MCP 插件注册..."
-$pluginName = "chrome-mcp-stdio"
+$pluginName = "chrome-mcp-new"
+$bridgeScript = (Join-Path $GlobalSkillDir "mcp-bridge.js").Replace('\', '\\')
 
 if (Test-Path $GlobalConfigFile) {
   $config = Get-Content $GlobalConfigFile -Raw
@@ -88,8 +89,8 @@ if (Test-Path $GlobalConfigFile) {
 
 [[plugins]]
 name    = "$pluginName"
-command = "mcp-chrome-stdio"
-args    = []
+command = "node"
+args    = ["$bridgeScript", "--server"]
 call_timeout_seconds = 300
 "@
     Add-Content -Path $GlobalConfigFile -Value $pluginBlock
@@ -99,26 +100,36 @@ call_timeout_seconds = 300
   Write-Warn "未找到 Reasonix 全局配置，跳过注册"
 }
 
-# ── Step 5: 重启后端服务 ────────────────────────────────────────────
+# ── Step 5: 检查后端服务 ────────────────────────────────────────────
 Write-Step "检查后端 MCP 服务..."
 try {
-  $testReq = [System.Net.WebRequest]::Create("http://127.0.0.1:12306/mcp")
+  $serverUrl = if ($env:MCP_SERVER_URL) { $env:MCP_SERVER_URL } else { "http://127.0.0.1:12306/mcp-new" }
+  $isStateless = ($env:MCP_PROTOCOL_MODE -eq "stateless") -or (($serverUrl.TrimEnd('/') -match "/mcp-new$") -and ($env:MCP_PROTOCOL_MODE -ne "legacy"))
+  $testReq = [System.Net.WebRequest]::Create($serverUrl)
   $testReq.Method = "POST"
   $testReq.ContentType = "application/json"
   $testReq.Accept = "text/event-stream, application/json"
   $testReq.Headers.Add("Origin", $(if ($env:MCP_SERVER_ORIGIN) { $env:MCP_SERVER_ORIGIN } else { "http://127.0.0.1" }))
+  if ($isStateless) {
+    $testReq.Headers.Add("MCP-Protocol-Version", "2026-07-28")
+    $testReq.Headers.Add("Mcp-Method", "server/discover")
+  }
   if ($env:CHROME_MCP_API_KEY) {
     $testReq.Headers.Add("Authorization", "Bearer $($env:CHROME_MCP_API_KEY)")
   }
   $testReq.Timeout = 3000
-  $testBody = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"install-probe","version":"1.0"}}}'
+  $testBody = if ($isStateless) {
+    '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"install-probe","version":"1.0"},"io.modelcontextprotocol/clientCapabilities":{}}}}'
+  } else {
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"install-probe","version":"1.0"}}}'
+  }
   $bytes = [System.Text.Encoding]::UTF8.GetBytes($testBody)
   $testReq.ContentLength = $bytes.Length
   $reqStream = $testReq.GetRequestStream()
   $reqStream.Write($bytes, 0, $bytes.Length)
   $reqStream.Close()
   $response = $testReq.GetResponse()
-  Write-OK "后端 MCP 服务运行中（端口 12306）"
+  Write-OK "后端 MCP 服务运行中（$serverUrl）"
 } catch {
   Write-Step "后端 MCP 服务未运行，正在启动..."
   try {
@@ -142,8 +153,8 @@ Write-Host ""
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor $Cyan
 Write-Host "🎉 安装完成！" -ForegroundColor $Green
 Write-Host ""
-Write-Host "现在 Reasonix 将直接启动原生 stdio MCP 服务:"
-Write-Host "  mcp-chrome-stdio" -ForegroundColor $Cyan
+Write-Host "现在 Reasonix 将启动无状态 stdio MCP bridge:"
+Write-Host "  node $GlobalSkillDir\mcp-bridge.js --server" -ForegroundColor $Cyan
 Write-Host ""
 Write-Host "工具列表:"
 Write-Host "  chrome_navigate / chrome_read_page / chrome_computer / chrome_extract ...（由后端动态提供）" -ForegroundColor $Cyan

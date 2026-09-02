@@ -3,17 +3,17 @@
 <p align="center">🕷️</p>
 
 <p align="center">
-  <a href="https://img.shields.io/badge/version-3.4.0-6C47FF"><img src="https://img.shields.io/badge/version-3.4.0-6C47FF" alt="Version 3.4.0"></a>
+  <a href="https://img.shields.io/badge/version-3.5.0-6C47FF"><img src="https://img.shields.io/badge/version-3.5.0-6C47FF" alt="Version 3.5.0"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%3E%3D24-339933?logo=node.js&logoColor=white" alt="Node.js"></a>
   <a href="https://spec.modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-Streamable_HTTP-FF6B35?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjIgMTIuM2wtMy0zTTE3IDE4SDdNMTIgMjJsLTMtM00xMiAybC0zIDNNMiAxMi4zbDMtMyIvPjwvc3ZnPg==" alt="MCP"></a>
-  <a href="https://github.com/phoenixlucky/mcp-chrome-2026"><img src="https://img.shields.io/badge/Chrome_MCP-v2.4.x-4285F4?logo=googlechrome&logoColor=white" alt="Chrome MCP"></a>
+  <a href="https://github.com/phoenixlucky/mcp-chrome-2026"><img src="https://img.shields.io/badge/Chrome_MCP-v2.5.x-4285F4?logo=googlechrome&logoColor=white" alt="Chrome MCP"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow" alt="License"></a>
   <a href="./SKILL.md"><img src="https://img.shields.io/badge/AI-Playbook-6C47FF" alt="AI Playbook"></a>
 </p>
 
 <p align="center">
-  <b>直接使用 mcp-chrome-stdio 连接 Chrome MCP</b><br>
-  官方 StreamableHTTPClientTransport · 原生 Session 管理 · 无需外部桥接脚本
+  <b>连接 Chrome MCP 2026-07-28 无状态端点</b><br>
+  `/mcp-new` · Header 路由 · MRTR / Tasks 透传 · `/mcp` 兼容回退
 </p>
 
 ---
@@ -24,7 +24,7 @@
 - [✨ 核心特性](#-核心特性)
 - [🔧 能力矩阵](#-能力矩阵)
 - [🚀 快速开始](#-快速开始)
-- [💻 Legacy bridge CLI 命令参考](#-legacy-bridge-cli-命令参考)
+- [💻 Bridge CLI 命令参考](#-bridge-cli-命令参考)
 - [🖥️ AI 客户端配置](#️-ai-客户端配置)
 - [📦 项目结构](#-项目结构)
 - [⚙️ 技术细节](#️-技术细节)
@@ -36,15 +36,15 @@
 ## 📖 概述
 
 ```text
-┌─────────────────┐     Stdio MCP      ┌──────────────────────┐    HTTP POST+SSE    ┌─────────────────────────┐
-│   AI 客户端      │ ◄──────────────►  │  mcp-chrome-stdio    │ ◄────────────────► │  mcp-chrome-2026        │
-│  Claude / Cursor │                   │  官方 SDK Transport  │                    │  Chrome 浏览器自动化     │
-│  VS Code / Codex│                   │  Session 生命周期    │                    │  http://127.0.0.1:12306 │
-│  Windsurf / Cline│                  │  Origin / API Key    │                    │  /mcp                   │
+┌─────────────────┐     Stdio MCP      ┌──────────────────────┐    HTTP POST       ┌─────────────────────────┐
+│   AI 客户端      │ ◄──────────────►  │  mcp-bridge.js       │ ◄────────────────► │  mcp-chrome-2026        │
+│  Claude / Cursor │                   │  新协议适配 / 兼容    │                    │  Chrome 浏览器自动化     │
+│  VS Code / Codex│                   │  无状态 / MRTR / Tasks │                    │  /mcp-new               │
+│  Windsurf / Cline│                  │  Header / API Key      │                    │  /mcp（兼容）            │
 └─────────────────┘                    └──────────────────────┘                    └─────────────────────────┘
 ```
 
-上游 `mcp-chrome-2026` 已提供原生 `mcp-chrome-stdio` 入口。它使用官方 `StreamableHTTPClientTransport` 处理 HTTP POST、SSE 和 `sessionId` 生命周期，因此正常使用不再需要本仓库的 `mcp-bridge.js`。后者仅作为旧客户端或 CLI 场景的兼容回退。
+上游已提供 `/mcp-new` 尝鲜端点，对应 MCP `2026-07-28` 的无状态协议。本项目的 `mcp-bridge.js` 现在默认连接该端点：每次请求携带协议元数据和 `Mcp-Method`/`Mcp-Name` Header，不写入或复用 Session。显式把 `MCP_SERVER_URL` 指向 `/mcp`，或设置 `MCP_PROTOCOL_MODE=legacy`，仍可连接旧版兼容端点。
 
 ---
 
@@ -53,16 +53,16 @@
 <table>
   <tr>
     <td width="33%" align="center">
-      <h3>🔌 零配置连接</h3>
-      <p>直接配置 <code>mcp-chrome-stdio</code>，由官方 SDK 管理连接</p>
+      <h3>🔌 无状态连接</h3>
+      <p>默认连接 <code>/mcp-new</code>，每个请求可独立路由</p>
     </td>
     <td width="33%" align="center">
-      <h3>🔄 智能自动恢复</h3>
-      <p>SDK 原生处理 Streamable HTTP 的 Session 生命周期和恢复</p>
+      <h3>🧩 MRTR / Tasks</h3>
+      <p>透传 <code>input_required</code>、<code>requestState</code> 和 Tasks 扩展</p>
     </td>
     <td width="33%" align="center">
-      <h3>📡 双协议解析</h3>
-      <p>官方 Transport 统一处理即时 JSON 与 SSE 流式响应</p>
+      <h3>📡 双端点兼容</h3>
+      <p><code>/mcp-new</code> 新协议与 <code>/mcp</code> 旧协议均可用</p>
     </td>
   </tr>
   <tr>
@@ -71,12 +71,12 @@
       <p>支持 <code>MCP_SERVER_ORIGIN</code> 与 <code>CHROME_MCP_API_KEY</code> 转发</p>
     </td>
     <td width="33%" align="center">
-      <h3>📦 原生入口</h3>
-      <p>安装上游 npm 包即可运行，无需维护额外的 Session 代理层</p>
+      <h3>🧭 Header 路由</h3>
+      <p>方法和工具名放入 HTTP Header，网关可直接路由</p>
     </td>
     <td width="33%" align="center">
-      <h3>🧩 兼容回退</h3>
-      <p><code>mcp-bridge.js</code> 仍保留给旧客户端和 CLI 调试使用</p>
+      <h3>🔙 兼容回退</h3>
+      <p>指向 <code>/mcp</code> 即可继续使用旧 Session 协议</p>
     </td>
   </tr>
 </table>
@@ -85,7 +85,7 @@
 
 ## 🔧 能力矩阵
 
-对接 [mcp-chrome-2026](https://github.com/phoenixlucky/mcp-chrome-2026) 服务，动态暴露完整浏览器自动化工具目录（v2.4.x）：
+对接 [mcp-chrome-2026](https://github.com/phoenixlucky/mcp-chrome-2026) 服务，动态暴露完整浏览器自动化工具目录（v2.5.x）：
 
 | 分类 | 核心工具 | 能力 |
 |:---:|:---|:---|
@@ -106,7 +106,18 @@
 
 > 🔑 **全局公共参数（v2.1+）**：所有工具支持 `profileId`（隔离环境）、`intent`（操作意图显示）、`expectedUrl`（URL 安全护栏）、`actionPolicy`（fast/balanced/human 动作节奏）。
 >
-> 💡 由 MCP 客户端启动 `mcp-chrome-stdio` 即可获取实时工具列表。旧版 CLI 可执行 `node mcp-bridge.js call tools/list`。详细 AI 操作指南请参阅 [SKILL.md](./SKILL.md)。
+> 💡 由 MCP 客户端启动 `node mcp-bridge.js --server` 即可获取实时工具列表；CLI 可执行 `node mcp-bridge.js call tools/list`。详细 AI 操作指南请参阅 [SKILL.md](./SKILL.md)。
+
+### 2026-07-28 升级摘要
+
+| 旧实现 | 新实现 |
+|:---|:---|
+| Session / `Mcp-Session-Id` | `/mcp-new` 无状态请求 |
+| JSON 体内判断路由 | `Mcp-Method` / `Mcp-Name` Header |
+| `initialize` 后再调用 | 可选 `server/discover`，每次请求带 `_meta` |
+| 服务端反向长连接 | MRTR 的 `input_required` + `inputResponses` |
+| 实验性 Tasks | `tasks/get` / `tasks/update` 扩展透传 |
+| HTTP+SSE / Roots / Sampling / Logging | 旧端点兼容保留，新端点不主动采用 |
 
 ---
 
@@ -137,8 +148,8 @@ mcp-chrome-bridge start
 验证服务是否在线：
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:12306/mcp
-# 预期输出: 200
+curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:12306/mcp-new
+# 预期输出: 200 或 400（取决于是否带完整 MCP 请求；端口在线即可）
 ```
 
 ### 第二步：获取配置模板
@@ -152,19 +163,22 @@ cd chrome-mcp-bridge-2026-skill
 
 #### 🅰️ 通过 MCP 客户端（推荐）
 
-从仓库模板复制生成 `.mcp.json`（仓库内不直接存放 `.mcp.json`，避免被智能助手自动扫描）：
+从仓库模板生成 `.mcp.json`（仓库内不直接存放 `.mcp.json`，避免被智能助手自动扫描；安装步骤会把 `__BRIDGE_PATH__` 替换为绝对路径）：
 
 ```powershell
 Copy-Item .mcp.json.example .mcp.json
+# 然后按 SKILL.md 的配置步骤，把 __BRIDGE_PATH__ 替换为实际 mcp-bridge.js 绝对路径
 ```
 
 ```json
 {
   "mcpServers": {
     "chrome": {
-      "command": "mcp-chrome-stdio",
+      "command": "node",
+      "args": ["__BRIDGE_PATH__", "--server"],
       "env": {
-        "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp",
+        "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new",
+        "MCP_PROTOCOL_MODE": "stateless",
         "MCP_SERVER_ORIGIN": "http://127.0.0.1"
       }
     }
@@ -174,35 +188,35 @@ Copy-Item .mcp.json.example .mcp.json
 
 启动客户端后，`chrome_*` 工具自动暴露。
 
-`MCP_SERVER_URL` 和 `MCP_SERVER_ORIGIN` 覆盖需要上游 `mcp-chrome-2026` **2.4.1+**；未设置时仍使用 `http://127.0.0.1:12306/mcp` 的兼容默认值。
+`MCP_SERVER_URL` 未设置时默认使用 `http://127.0.0.1:12306/mcp-new`；需要旧协议时改为 `/mcp`，或设置 `MCP_PROTOCOL_MODE=legacy`。`MCP_SERVER_ORIGIN` 可按部署环境覆盖。
 如果服务启用了 API Key，在同一个 `env` 对象中增加 `CHROME_MCP_API_KEY`；不要把真实密钥提交到仓库。
 
 #### 🅱️ 手动 stdio 握手
 
 ```powershell
-# MCP stdio 使用换行分隔 JSON；此命令会完成 initialize
+# MCP stdio 使用换行分隔 JSON；bridge 会在新端点上本地完成兼容握手
 $body = @'
-{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"manual-check","version":"1.0"}}}
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2026-07-28","capabilities":{},"clientInfo":{"name":"manual-check","version":"1.0"}}}
 '@
-$body | mcp-chrome-stdio
+$body | node mcp-bridge.js --server
 ```
 
-#### 🅲️ 旧版 bridge CLI（兼容回退）
+#### 🅲️ Bridge CLI
 
-需要手动调用 JSON-RPC、旧客户端不支持原生 stdio，或需要 bridge 的重试/诊断行为时，仍可使用 `mcp-bridge.js`。它会发送 `Origin: http://127.0.0.1`，并在设置 `CHROME_MCP_API_KEY` 时转发 Bearer API Key。
+需要手动调用 JSON-RPC、只支持 stdio 的客户端，或需要 bridge 的重试/诊断行为时，使用 `mcp-bridge.js`。默认连接 `/mcp-new`；它会发送 `Origin`、`MCP-Protocol-Version`、`Mcp-Method`，工具调用还会发送 `Mcp-Name`，并在设置 `CHROME_MCP_API_KEY` 时转发 Bearer API Key。
 
 ---
 
-## 💻 Legacy bridge CLI 命令参考
+## 💻 Bridge CLI 命令参考
 
-以下命令仅用于兼容回退和手动诊断；新的 MCP 客户端应直接配置 `mcp-chrome-stdio`。
+这些命令用于手动诊断、CLI 调用和只支持 stdio 的客户端；默认连接新端点，旧端点用 `MCP_PROTOCOL_MODE=legacy` 显式启用。
 
 | 命令 | 参数 | 说明 |
 |:---|:---|:---|
-| `init` | — | 初始化 MCP 连接，获取 Session ID |
+| `init` | — | 新端点调用 `server/discover`；旧端点调用 `initialize` |
 | `call` | `<method>` `[params\|--stdin]` | 调用 JSON-RPC 方法 |
-| `ping` | — | 心跳保活，延长 Session 有效期 |
-| `close` | — | 发送 Close 通知，清理 Session 文件 |
+| `ping` | — | 新端点转发无状态 ping；旧端点为兼容心跳 |
+| `close` | — | 关闭连接；新端点不清理 Session |
 | `path` | — | 输出脚本自身绝对路径 |
 | _(无参数)_ | — | 显示帮助信息 |
 
@@ -253,9 +267,11 @@ CLI 模式会把收到的通知写入 stderr，最终 JSON 仍写入 stdout，�
 {
   "mcpServers": {
     "chrome": {
-      "command": "mcp-chrome-stdio",
+      "command": "node",
+      "args": ["C:\\path\\to\\mcp-bridge.js", "--server"],
       "env": {
-        "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp",
+        "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new",
+        "MCP_PROTOCOL_MODE": "stateless",
         "MCP_SERVER_ORIGIN": "http://127.0.0.1"
       }
     }
@@ -275,7 +291,7 @@ CLI 模式会把收到的通知写入 stderr，最终 JSON 仍写入 stdout，�
 |:---|:---|
 | **Name** | `chrome` |
 | **Type** | `command` |
-| **Command** | `mcp-chrome-stdio` |
+| **Command** | `node C:\\path\\to\\mcp-bridge.js --server` |
 
 ### Codex
 
@@ -285,9 +301,11 @@ CLI 模式会把收到的通知写入 stderr，最终 JSON 仍写入 stdout，�
 {
   "mcpServers": {
     "chrome": {
-      "command": "mcp-chrome-stdio",
+      "command": "node",
+      "args": ["C:\\path\\to\\mcp-bridge.js", "--server"],
       "env": {
-        "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp",
+        "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new",
+        "MCP_PROTOCOL_MODE": "stateless",
         "MCP_SERVER_ORIGIN": "http://127.0.0.1"
       }
     }
@@ -297,9 +315,9 @@ CLI 模式会把收到的通知写入 stderr，最终 JSON 仍写入 stdout，�
 
 ### Windsurf
 
-在 `windsurf.json` 或 MCP 配置中添加 stdio server，命令设置为 `mcp-chrome-stdio`。
+在 `windsurf.json` 或 MCP 配置中添加 stdio server，命令设置为 `node C:\\path\\to\\mcp-bridge.js --server`。
 
-> **原理通用**：任一客户端只需配置一个 `stdio` MCP Server，`command` 为 `mcp-chrome-stdio`，并按需设置 `MCP_SERVER_URL`、`MCP_SERVER_ORIGIN` 和 `CHROME_MCP_API_KEY`。
+> **原理通用**：任一客户端只需配置一个 `stdio` MCP Server，启动 `mcp-bridge.js --server`，并按需设置 `MCP_SERVER_URL`、`MCP_PROTOCOL_MODE`、`MCP_SERVER_ORIGIN` 和 `CHROME_MCP_API_KEY`。
 
 ---
 
@@ -307,7 +325,7 @@ CLI 模式会把收到的通知写入 stderr，最终 JSON 仍写入 stdout，�
 
 ```
 chrome-mcp-bridge-2026-skill/
-├── 📄 mcp-bridge.js      旧版 bridge 兼容回退（非默认入口）
+├── 📄 mcp-bridge.js      stdio bridge（默认适配 /mcp-new，也兼容 /mcp）
 ├── 📘 SKILL.md           AI 代理操作手册（自动配置 + CLI 速查）
 ├── 📖 README.md          本文件（项目首页）
 ├── ⚙️ .mcp.json.example MCP 配置模板（安装时生成 `.mcp.json`）
@@ -319,29 +337,32 @@ chrome-mcp-bridge-2026-skill/
 
 ## ⚙️ 技术细节
 
-### 原生 Transport 与 Session 生命周期
+### `/mcp-new` 无状态 Transport
 
 ```mermaid
 flowchart LR
-    A["🚀 mcp-chrome-stdio"] --> B["官方 StreamableHTTPClientTransport"]
-    B --> C["POST /mcp (initialize)"]
-    C --> D["✅ sessionId"]
-    D --> E["🔁 SDK 复用并恢复 Session"]
-    E --> F["🛠 tools/list / tools/call"]
+    A["🚀 mcp-bridge.js"] --> B["POST /mcp-new"]
+    B --> C["MCP-Protocol-Version"]
+    B --> D["Mcp-Method / Mcp-Name"]
+    B --> E["_meta clientInfo / capabilities"]
+    E --> F["🛠 tools/list / tools/call / tasks"]
 ```
 
 | 阶段 | 负责组件 | 说明 |
 |:---|:---|:---|
-| **stdio** | `mcp-chrome-stdio` | MCP 客户端通过 stdin/stdout 连接 |
-| **HTTP** | 官方 SDK Transport | 负责 POST、SSE 和 `Mcp-Session-Id` |
+| **stdio** | `mcp-bridge.js --server` | MCP 客户端通过 stdin/stdout 连接 |
+| **HTTP** | `/mcp-new` | POST-only、无 Session，按请求携带协议元数据 |
+| **路由** | HTTP Header | `Mcp-Method`，工具调用附加 `Mcp-Name` |
 | **鉴权** | 环境变量 | `Origin` 与可选 Bearer API Key 由入口转发 |
 
 ### 环境变量
 
 | 变量 | 默认值 | 说明 |
 |:---|:---|:---|
-| `MCP_SERVER_URL` | `http://127.0.0.1:12306/mcp` | 后端 MCP 服务地址 |
-| `MCP_SERVER_ORIGIN` | `http://127.0.0.1` | 后端允许的 Origin；2.4.1+ 可覆盖 |
+| `MCP_SERVER_URL` | `http://127.0.0.1:12306/mcp-new` | 后端 MCP 服务地址；`/mcp` 保留旧协议 |
+| `MCP_PROTOCOL_MODE` | `auto` | `auto`、`stateless` 或 `legacy` |
+| `MCP_PROTOCOL_VERSION` | 按端点选择 | 新端点默认 `2026-07-28`，旧端点默认 `2025-11-25` |
+| `MCP_SERVER_ORIGIN` | `http://127.0.0.1` | 后端允许的 Origin |
 | `CHROME_MCP_API_KEY` | _(空)_ | 可选 API Key，转发为 `Authorization: Bearer ...` |
 | `DEBUG` | _(空)_ | 设为 `1` 开启调试日志 |
 
@@ -349,11 +370,11 @@ flowchart LR
 
 | 特性 | 状态 |
 |:---|:---:|
-| MCP Streamable HTTP 规范 | ✅ 由官方 SDK Transport 遵循 |
-| `mcp-chrome-stdio` | ✅ 原生 stdio 入口 |
-| SSE 流式响应 | ✅ 由官方 SDK 处理 |
-| Session 生命周期 | ✅ 由官方 SDK 管理 |
-| `mcp-bridge.js` | ⚠️ 仅兼容回退 |
+| MCP `2026-07-28` `/mcp-new` | ✅ 无状态请求、Header 路由 |
+| `server/discover` | ✅ `init` 命令映射 |
+| MRTR / Tasks / Extensions | ✅ 结果和方法透传 |
+| `tools/list` cache hints | ✅ 保留 `ttlMs` / `cacheScope`，按 TTL 缓存 |
+| `/mcp` 旧端点 | ✅ 自动识别并保留 Session 兼容 |
 
 ---
 
