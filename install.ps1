@@ -78,11 +78,21 @@ Write-OK "已同步 $copied 个文件"
 Write-Step "检查全局 MCP 插件注册..."
 $pluginName = "chrome-mcp-new"
 $bridgeScript = (Join-Path $GlobalSkillDir "mcp-bridge.js").Replace('\', '\\')
+$pluginEnvLine = 'env     = { MCP_SERVER_URL = "http://127.0.0.1:12306/mcp-new", MCP_PROTOCOL_MODE = "stateless", MCP_SERVER_ORIGIN = "${MCP_SERVER_ORIGIN:-http://127.0.0.1}", CHROME_MCP_API_KEY = "${CHROME_MCP_API_KEY:-}" }'
+$pluginPattern = '(?ms)\[\[plugins\]\]\s*name\s*=\s*"' + [regex]::Escape($pluginName) + '".*?(?=\r?\n\[\[plugins\]\]|\z)'
+$pluginMatch = [regex]::Match((if (Test-Path $GlobalConfigFile) { Get-Content $GlobalConfigFile -Raw } else { '' }), $pluginPattern)
 
 if (Test-Path $GlobalConfigFile) {
   $config = Get-Content $GlobalConfigFile -Raw
-  if ($config -match "name\s*=\s*`"$pluginName`"") {
-    Write-OK "MCP 插件 '$pluginName' 已在全局配置中注册"
+  if ($pluginMatch.Success) {
+    if ($pluginMatch.Value -notmatch '(?m)^\s*env\s*=') {
+      $updatedBlock = $pluginMatch.Value.TrimEnd() + "`r`n$pluginEnvLine`r`n"
+      $config = $config.Substring(0, $pluginMatch.Index) + $updatedBlock + $config.Substring($pluginMatch.Index + $pluginMatch.Length)
+      Set-Content -Path $GlobalConfigFile -Value $config -Encoding UTF8
+      Write-OK "MCP 插件 '$pluginName' 已补充 Origin/API Key 环境变量"
+    } else {
+      Write-OK "MCP 插件 '$pluginName' 已在全局配置中注册"
+    }
   } else {
     Write-Step "注册 MCP 插件到全局配置..."
     $pluginBlock = @"
@@ -91,6 +101,7 @@ if (Test-Path $GlobalConfigFile) {
 name    = "$pluginName"
 command = "node"
 args    = ["$bridgeScript", "--server"]
+$pluginEnvLine
 call_timeout_seconds = 300
 "@
     Add-Content -Path $GlobalConfigFile -Value $pluginBlock

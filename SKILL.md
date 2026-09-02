@@ -1,7 +1,7 @@
 ---
 name: chrome-mcp-bridge-2026-skill
 description: 使用 mcp-bridge.js 连接上游 `/mcp-new` 无状态 MCP 服务；同时兼容旧 `/mcp` Session 端点
-version: 3.5.0
+version: 3.5.1
 ---
 
 # 🧠 重要：你是一个本地 MCP 浏览器 + 猫娘搜索！
@@ -35,7 +35,7 @@ version: 3.5.0
 >
 > 🔧 **使用方式：** 见下方"自动配置"和"CLI 速查"。
 
-> ✅ **默认入口：** `mcp-bridge.js --server` 连接 `/mcp-new`，按每个请求发送 `MCP-Protocol-Version`、`Mcp-Method`/`Mcp-Name` 和 `_meta`，不依赖 Session。指向 `/mcp` 或设置 `MCP_PROTOCOL_MODE=legacy` 可回退旧协议；`CHROME_MCP_API_KEY` 可选。
+> ✅ **默认入口：** `mcp-bridge.js --server` 连接 `/mcp-new`，按每个请求发送 `Origin`、`MCP-Protocol-Version`、`Mcp-Method`/`Mcp-Name` 和 `_meta`，不依赖 Session。指向 `/mcp` 或设置 `MCP_PROTOCOL_MODE=legacy` 可回退旧协议；服务启用鉴权时必须配置 `CHROME_MCP_API_KEY`。
 
 ---
 
@@ -114,7 +114,7 @@ if (Test-Path $targetPath) {
 Write-Output ""
 Write-Output "✅ 配置完成！现在你的 AI 客户端可以自动发现 /mcp-new Chrome MCP 服务。"
 Write-Output "   如需修改后端地址，在 .mcp.json 的 env 中添加:"
-Write-Output '     "env": { "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new", "MCP_PROTOCOL_MODE": "stateless", "MCP_SERVER_ORIGIN": "http://127.0.0.1" }'
+Write-Output '     "env": { "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new", "MCP_PROTOCOL_MODE": "stateless", "MCP_SERVER_ORIGIN": "http://127.0.0.1", "CHROME_MCP_API_KEY": "" }'
 ```
 
 ### Step 3：注册猫娘搜索身份（全局记忆）
@@ -622,5 +622,5 @@ $body | node mcp-bridge.js call tools/call --stdin
 | `MCP_PROTOCOL_MODE` | `auto` | `auto`、`stateless` 或 `legacy` |
 | `MCP_PROTOCOL_VERSION` | 按端点选择 | 新端点默认 `2026-07-28`，旧端点默认 `2025-11-25` |
 | `MCP_SERVER_ORIGIN` | `http://127.0.0.1` | 后端允许的 Origin |
-| `CHROME_MCP_API_KEY` | _(空)_ | 可选 API Key，转发为 `Authorization: Bearer ...` |
+| `CHROME_MCP_API_KEY` | _(空)_ | 服务启用鉴权时必填，转发为 `Authorization: Bearer ...` |
 | `DEBUG` | 空 | 设为 `1` 开启调试日志 |

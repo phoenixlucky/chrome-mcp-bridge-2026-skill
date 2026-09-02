@@ -3,7 +3,7 @@
 <p align="center">🕷️</p>
 
 <p align="center">
-  <a href="https://img.shields.io/badge/version-3.5.0-6C47FF"><img src="https://img.shields.io/badge/version-3.5.0-6C47FF" alt="Version 3.5.0"></a>
+  <a href="https://img.shields.io/badge/version-3.5.1-6C47FF"><img src="https://img.shields.io/badge/version-3.5.1-6C47FF" alt="Version 3.5.1"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%3E%3D24-339933?logo=node.js&logoColor=white" alt="Node.js"></a>
   <a href="https://spec.modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-Streamable_HTTP-FF6B35?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMjIgMTIuM2wtMy0zTTE3IDE4SDdNMTIgMjJsLTMtM00xMiAybC0zIDNNMiAxMi4zbDMtMyIvPjwvc3ZnPg==" alt="MCP"></a>
   <a href="https://github.com/phoenixlucky/mcp-chrome-2026"><img src="https://img.shields.io/badge/Chrome_MCP-v2.5.x-4285F4?logo=googlechrome&logoColor=white" alt="Chrome MCP"></a>
@@ -179,7 +179,8 @@ Copy-Item .mcp.json.example .mcp.json
       "env": {
         "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new",
         "MCP_PROTOCOL_MODE": "stateless",
-        "MCP_SERVER_ORIGIN": "http://127.0.0.1"
+        "MCP_SERVER_ORIGIN": "http://127.0.0.1",
+        "CHROME_MCP_API_KEY": ""
       }
     }
   }
@@ -189,7 +190,7 @@ Copy-Item .mcp.json.example .mcp.json
 启动客户端后，`chrome_*` 工具自动暴露。
 
 `MCP_SERVER_URL` 未设置时默认使用 `http://127.0.0.1:12306/mcp-new`；需要旧协议时改为 `/mcp`，或设置 `MCP_PROTOCOL_MODE=legacy`。`MCP_SERVER_ORIGIN` 可按部署环境覆盖。
-如果服务启用了 API Key，在同一个 `env` 对象中增加 `CHROME_MCP_API_KEY`；不要把真实密钥提交到仓库。
+如果服务启用了 API Key，把 `CHROME_MCP_API_KEY` 填入同一个 `env` 对象；bridge 会发送 `Authorization: Bearer <key>`。不要把真实密钥提交到仓库。
 
 #### 🅱️ 手动 stdio 握手
 
@@ -272,7 +273,8 @@ CLI 模式会把收到的通知写入 stderr，最终 JSON 仍写入 stdout，�
       "env": {
         "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new",
         "MCP_PROTOCOL_MODE": "stateless",
-        "MCP_SERVER_ORIGIN": "http://127.0.0.1"
+        "MCP_SERVER_ORIGIN": "http://127.0.0.1",
+        "CHROME_MCP_API_KEY": ""
       }
     }
   }
@@ -306,7 +308,8 @@ CLI 模式会把收到的通知写入 stderr，最终 JSON 仍写入 stdout，�
       "env": {
         "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new",
         "MCP_PROTOCOL_MODE": "stateless",
-        "MCP_SERVER_ORIGIN": "http://127.0.0.1"
+        "MCP_SERVER_ORIGIN": "http://127.0.0.1",
+        "CHROME_MCP_API_KEY": ""
       }
     }
   }
@@ -363,7 +366,7 @@ flowchart LR
 | `MCP_PROTOCOL_MODE` | `auto` | `auto`、`stateless` 或 `legacy` |
 | `MCP_PROTOCOL_VERSION` | 按端点选择 | 新端点默认 `2026-07-28`，旧端点默认 `2025-11-25` |
 | `MCP_SERVER_ORIGIN` | `http://127.0.0.1` | 后端允许的 Origin |
-| `CHROME_MCP_API_KEY` | _(空)_ | 可选 API Key，转发为 `Authorization: Bearer ...` |
+| `CHROME_MCP_API_KEY` | _(空)_ | 服务启用鉴权时必填，转发为 `Authorization: Bearer ...` |
 | `DEBUG` | _(空)_ | 设为 `1` 开启调试日志 |
 
 ### 兼容性

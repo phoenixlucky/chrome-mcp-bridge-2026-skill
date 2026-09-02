@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * mcp-bridge.js — Streamable HTTP MCP 桥接脚本 (v3.5.0)
+ * mcp-bridge.js — Streamable HTTP MCP 桥接脚本 (v3.5.1)
  *
  * 一个通用的 MCP 协议桥接工具，支持两种运行模式：
  *
@@ -50,9 +50,9 @@ const MAX_RETRIES = 2;
 const STDIN_TIMEOUT_MS = 3000;
 const SESSION_FILE = path.join(os.tmpdir(), 'mcp-bridge-session.json');
 const SERVER_NAME = 'mcp-bridge-server';
-const SERVER_VERSION = '3.5.0';
+const SERVER_VERSION = '3.5.1';
 const BACKEND_CLIENT_NAME = 'mcp-bridge-backend';
-const BACKEND_CLIENT_VERSION = '3.5.0';
+const BACKEND_CLIENT_VERSION = '3.5.1';
 
 // MCP 协议版本协商 — 与服务端 SDK 列表保持一致
 const SUPPORTED_PROTOCOL_VERSIONS = [

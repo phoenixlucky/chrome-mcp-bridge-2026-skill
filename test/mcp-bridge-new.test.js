@@ -16,6 +16,8 @@ function runBridge(url, method, params) {
         ...process.env,
         MCP_SERVER_URL: url,
         MCP_PROTOCOL_MODE: 'auto',
+        MCP_SERVER_ORIGIN: 'http://test-origin',
+        CHROME_MCP_API_KEY: 'test-api-key',
         DEBUG: '',
       },
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -77,6 +79,8 @@ test('stateless /mcp-new requests use headers, metadata, and preserve MRTR field
   assert.equal(requests[0].headers['mcp-method'], 'tools/list');
   assert.equal(requests[0].headers['mcp-name'], undefined);
   assert.equal(requests[0].headers['mcp-session-id'], undefined);
+  assert.equal(requests[0].headers.origin, 'http://test-origin');
+  assert.equal(requests[0].headers.authorization, 'Bearer test-api-key');
   assert.equal(requests[0].body.params._meta['io.modelcontextprotocol/protocolVersion'], '2026-07-28');
   assert.deepEqual(requests[0].body.params._meta['io.modelcontextprotocol/clientCapabilities'], {});
   assert.equal(requests[1].headers['mcp-method'], 'tools/call');
@@ -107,7 +111,13 @@ test('stdio server mode uses discover instead of backend initialize', async t =>
   const { port } = server.address();
   const child = spawn(process.execPath, [BRIDGE, '--server'], {
     cwd: ROOT,
-    env: { ...process.env, MCP_SERVER_URL: `http://127.0.0.1:${port}/mcp-new`, MCP_PROTOCOL_MODE: 'stateless' },
+    env: {
+      ...process.env,
+      MCP_SERVER_URL: `http://127.0.0.1:${port}/mcp-new`,
+      MCP_PROTOCOL_MODE: 'stateless',
+      MCP_SERVER_ORIGIN: 'http://test-origin',
+      CHROME_MCP_API_KEY: 'test-api-key',
+    },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   t.after(() => child.kill());
