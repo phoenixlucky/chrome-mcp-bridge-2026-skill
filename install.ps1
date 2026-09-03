@@ -1,24 +1,23 @@
 ﻿#!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-  安装原生 mcp-chrome-stdio，并可选生成当前项目的 .mcp.json。
+  自动生成当前项目的 .mcp.json，并测试 mcp-chrome-bridge start。
 
-.PARAMETER WriteConfig
-  将 .mcp.json.example 合并/写入当前目录的 .mcp.json。
+.PARAMETER SkipConfig
+  跳过自动生成 .mcp.json。
 
 .PARAMETER ConfigPath
   指定要写入的 MCP 配置路径；默认是当前目录的 .mcp.json。
 #>
 
 param(
-  [switch]$WriteConfig,
+  [switch]$SkipConfig,
   [string]$ConfigPath = (Join-Path (Get-Location) '.mcp.json')
 )
 
 $ErrorActionPreference = 'Stop'
-$RepoRoot = Split-Path -Parent $PSScriptRoot
+$RepoRoot = $PSScriptRoot
 $PackageName = '@ethanwilkins/mcp-chrome-bridge-2026'
-$MinimumNativeVersion = [version]'2.5.5'
 $TemplatePath = Join-Path $RepoRoot '.mcp.json.example'
 
 $Green = [ConsoleColor]::Green
@@ -35,34 +34,8 @@ Write-Host ''
 Write-Host '📦 Chrome MCP 通用 skill 安装（原生 stdio）' -ForegroundColor $Cyan
 Write-Host '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' -ForegroundColor $Cyan
 
-# ── Step 1: 安装/检查原生 MCP 包 ─────────────────────────────────────
-Write-Step "检查 $PackageName..."
-$installedVersion = $null
-$npmVersion = npm list -g $PackageName --depth=0 2>&1 | Select-String "$PackageName@"
-if ($npmVersion -and $npmVersion.ToString() -match '@(?<Version>\d+\.\d+\.\d+)') {
-  $installedVersion = [version]$Matches.Version
-}
-
-if ($installedVersion -and $installedVersion -ge $MinimumNativeVersion) {
-  Write-OK "已安装: v$installedVersion"
-} else {
-  Write-Step "正在安装 $PackageName@latest（需要 >= v$MinimumNativeVersion）..."
-  npm install -g "$PackageName@latest" 2>&1 | Out-Null
-  if ($LASTEXITCODE -ne 0) {
-    Write-Err "npm 安装失败，请手动执行: npm install -g $PackageName@latest"
-    exit 1
-  }
-  Write-OK '原生 MCP 包安装完成'
-}
-
-if (-not (Get-Command mcp-chrome-stdio -ErrorAction SilentlyContinue)) {
-  Write-Err "未找到 mcp-chrome-stdio，请重新安装 $PackageName"
-  exit 1
-}
-Write-OK '已找到 mcp-chrome-stdio'
-
-# ── Step 2: 可选生成项目 MCP 配置 ────────────────────────────────────
-if ($WriteConfig) {
+# ── Step 1: 自动生成项目 MCP 配置 ─────────────────────────────────────
+if (-not $SkipConfig) {
   Write-Step "写入 MCP 配置: $ConfigPath"
   if (-not (Test-Path $TemplatePath)) {
     Write-Err "未找到配置模板: $TemplatePath"
@@ -79,47 +52,42 @@ if ($WriteConfig) {
     $config = $template
   }
   $config | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $ConfigPath -Encoding UTF8
-  Write-OK '已生成原生 mcp-chrome-stdio 配置'
+  Write-OK '已自动生成原生 mcp-chrome-stdio 配置'
 }
 
-# ── Step 3: 检查 HTTP 服务 ───────────────────────────────────────────
-Write-Step '检查后端 MCP 服务...'
+# ── Step 2: 只测试后端启动命令 ───────────────────────────────────────
+Write-Step '测试 mcp-chrome-bridge start...'
+$bridgeCommand = Get-Command mcp-chrome-bridge -ErrorAction SilentlyContinue
+if (-not $bridgeCommand) {
+  Write-Err "未找到 mcp-chrome-bridge，请先全局安装 $PackageName 后重试"
+  exit 1
+}
+
+$stdoutPath = Join-Path ([IO.Path]::GetTempPath()) "mcp-chrome-bridge-start-$PID.out"
+$stderrPath = Join-Path ([IO.Path]::GetTempPath()) "mcp-chrome-bridge-start-$PID.err"
 try {
-  $serverUrl = if ($env:MCP_SERVER_URL) { $env:MCP_SERVER_URL } else { 'http://127.0.0.1:12306/mcp-new' }
-  $isStateless = $serverUrl.TrimEnd('/') -match '/mcp-new$'
-  $origin = if ($env:MCP_SERVER_ORIGIN) { $env:MCP_SERVER_ORIGIN } else { 'chrome-extension://mcp-stdio' }
-  $testReq = [System.Net.WebRequest]::Create($serverUrl)
-  $testReq.Method = 'POST'
-  $testReq.ContentType = 'application/json'
-  $testReq.Accept = 'application/json, text/event-stream'
-  $testReq.Headers.Add('Origin', $origin)
-  if ($env:CHROME_MCP_API_KEY) {
-    $testReq.Headers.Add('Authorization', "Bearer $($env:CHROME_MCP_API_KEY)")
-  }
-  if ($isStateless) {
-    $testReq.Headers.Add('MCP-Protocol-Version', '2026-07-28')
-    $testReq.Headers.Add('Mcp-Method', 'server/discover')
-  }
-  $body = if ($isStateless) {
-    '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"install-probe","version":"1.0"},"io.modelcontextprotocol/clientCapabilities":{}}}}'
+  $startProcess = if ($bridgeCommand.CommandType -eq 'ExternalScript') {
+    Start-Process -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $bridgeCommand.Source, 'start') -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
   } else {
-    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"install-probe","version":"1.0"}}}'
+    Start-Process -FilePath $bridgeCommand.Source -ArgumentList 'start' -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
   }
-  $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
-  $testReq.ContentLength = $bytes.Length
-  $requestStream = $testReq.GetRequestStream()
-  $requestStream.Write($bytes, 0, $bytes.Length)
-  $requestStream.Close()
-  $response = $testReq.GetResponse()
-  $response.Close()
-  Write-OK "后端 MCP 服务运行中（$serverUrl）"
 } catch {
-  $statusCode = $_.Exception.Response.StatusCode.value__
-  if ($statusCode -eq 401 -or $statusCode -eq 403) {
-    Write-Warn '后端要求 API Key，请设置 $env:CHROME_MCP_API_KEY 后重试'
-  } else {
-    Write-Warn '后端服务未运行，请先执行: mcp-chrome-bridge start'
+  Write-Err "无法执行 mcp-chrome-bridge start，请先全局安装 $PackageName 后重试"
+  exit 1
+}
+
+if ($startProcess.WaitForExit(5000)) {
+  if ($startProcess.ExitCode -ne 0) {
+    $details = @((Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue), (Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)) -join "`n"
+    if ($details.Trim()) { Write-Host $details.Trim() -ForegroundColor $Yellow }
+    Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+    Write-Err "mcp-chrome-bridge start 启动失败，请先全局安装 $PackageName 后重试"
+    exit 1
   }
+  Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+  Write-OK 'mcp-chrome-bridge start 已成功退出'
+} else {
+  Write-OK 'mcp-chrome-bridge start 正在运行'
 }
 
 Write-Host ''

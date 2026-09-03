@@ -19,6 +19,12 @@ test('template uses native mcp-chrome-stdio with auth settings', () => {
 test('installer no longer launches the removed bridge', () => {
   const installer = fs.readFileSync(path.join(ROOT, 'install.ps1'), 'utf8');
   assert.match(installer, /mcp-chrome-stdio/);
+  assert.match(installer, /mcp-chrome-bridge start/);
+  assert.match(installer, /全局安装 \$PackageName/);
+  assert.doesNotMatch(installer, /npm install/);
+  assert.match(installer, /\$SkipConfig/);
+  assert.match(installer, /自动生成原生 mcp-chrome-stdio 配置/);
+  assert.doesNotMatch(installer, /检查后端 MCP 服务/);
   assert.doesNotMatch(installer, /mcp-bridge\.js/);
   assert.doesNotMatch(installer, /Reasonix/);
 });

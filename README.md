@@ -7,17 +7,16 @@
 ## 快速开始
 
 ```powershell
-npm install -g @ethanwilkins/mcp-chrome-bridge-2026@latest
-mcp-chrome-bridge start
 .\install.ps1
 ```
 
-安装脚本会：
+首次使用直接运行安装器；它不会执行 npm 安装，会自动生成/合并 `.mcp.json` 并测试 `mcp-chrome-bridge start`：
 
-- 检查原生包版本（最低 v2.5.5）
 - 同步 skill 和 MCP 配置模板
-- 可选生成/更新当前目录的 `.mcp.json`
-- 检查后端 HTTP MCP 服务
+- 自动生成/更新当前目录的 `.mcp.json`
+- 使用 `-SkipConfig` 可跳过配置文件生成
+
+只有启动命令不可用或启动失败时，才根据提示安装 `@ethanwilkins/mcp-chrome-bridge-2026`。
 
 ## MCP 客户端配置
 
@@ -81,7 +80,7 @@ mcp-chrome-bridge start
 }
 ```
 
-然后重新运行 `.\install.ps1 -WriteConfig`，完全退出并重启 AI 客户端。旧的 `MCP_PROTOCOL_MODE`、`MCP_PROTOCOL_VERSION` 和 bridge 路径不再需要。
+然后重新运行 `.\install.ps1`，完全退出并重启 AI 客户端。旧的 `MCP_PROTOCOL_MODE`、`MCP_PROTOCOL_VERSION` 和 bridge 路径不再需要。
 
 ## 环境变量
 
