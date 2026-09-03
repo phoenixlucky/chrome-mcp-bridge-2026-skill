@@ -1,107 +1,49 @@
 <div align="center">
 
-# 🕷️ chrome-mcp-bridge-2026-skill
+# chrome-mcp-bridge-2026-skill
 
-**Chrome MCP 原生 stdio 配置 Skill · v4.0.0**
+**新版 MCP 2026-07-28 /mcp-new bridge · v4.1.0**
 
-连接本地 Chrome 浏览器自动化 MCP 服务，开箱即用。
-
-[![Version](https://img.shields.io/badge/version-4.0.0-6C47FF)](https://github.com/phoenixlucky/chrome-mcp-bridge-2026-skill)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/phoenixlucky/mcp-chrome-2026#license)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-FF6B35)](https://modelcontextprotocol.io)
-[![Upstream](https://img.shields.io/badge/Upstream-mcp--chrome--2026-v2.5.5-4285F4)](https://github.com/phoenixlucky/mcp-chrome-2026)
-[![AI Playbook](https://img.shields.io/badge/AI-Playbook-6C47FF)](./SKILL.md)
+连接已有的本地 Chrome 浏览器自动化 MCP 服务。
 
 </div>
 
----
+## 解决的问题
 
-## 目录
-
-- [✨ 简介](#-简介)
-- [🛠️ 核心特性](#️-核心特性)
-- [🚀 快速开始](#-快速开始)
-- [⚙️ MCP 客户端配置](#️-mcp-客户端配置)
-- [🔑 环境变量](#-环境变量)
-- [🔁 从旧 bridge 迁移](#-从旧-bridge-迁移)
-- [📦 项目结构](#-项目结构)
-- [✅ 验证](#-验证)
-- [📚 相关资源](#-相关资源)
-- [📄 许可证](#-许可证)
-
----
-
-## ✨ 简介
-
-本项目为 **Chrome MCP（`mcp-chrome-2026`）** 提供即用配置：不再自研 HTTP 桥接脚本，直接使用上游原生 **`mcp-chrome-stdio`**——默认连接 `/mcp-new`，失败自动回退 `/mcp`。
+本项目内置并固定使用仓库根目录的 `mcp-bridge.js`，避免 skill 文档、全局安装目录和备份目录之间发生版本错位。默认连接：
 
 ```text
-┌─────────────────┐   stdio MCP    ┌────────────────────┐   HTTP POST+SSE   ┌──────────────────────┐
-│   AI 客户端       │ ◄────────────► │  mcp-chrome-stdio  │ ◄───────────────► │  mcp-chrome-2026     │
-│  Claude / Cursor │                │  原生入口 · 无 Session │                  │  Chrome 浏览器自动化  │
-│  VS Code / Codex │                │  /mcp-new → /mcp    │                  │  http://127.0.0.1    │
-└─────────────────┘                 └────────────────────┘                  └──────────────────────┘
+http://127.0.0.1:12306/mcp-new
 ```
 
-> ⚠️ 本项目**不再维护 `mcp-bridge.js`**。旧配置可参照[迁移指南](#-从旧-bridge-迁移)升级。
+`/mcp-new` 是 MCP `2026-07-28` 的无会话端点：每条请求独立处理，不执行或等待 `initialize`，不保存或回传 `Mcp-Session-Id`。旧 `/mcp` 才使用 Session 兼容流程。
 
----
+## 快速开始
 
-## 🛠️ 核心特性
-
-| 特性 | 说明 |
-|:---|:---|
-| 🔌 **零维护连接** | 使用上游原生 `mcp-chrome-stdio`，无需自研桥接层 |
-| 🔁 **自动回退** | 默认 `/mcp-new` 无 Session；失败自动回退兼容 `/mcp` |
-| 🧭 **协议完备** | 统一处理 JSON-RPC、deadline、取消、重试与错误映射 |
-| 📥 **双 framing** | 同时接受 newline JSON 与 `Content-Length` stdio framing |
-| 🔑 **鉴权支持** | 读取 `MCP_SERVER_URL` / `MCP_SERVER_ORIGIN` / `CHROME_MCP_API_KEY`，自动发送 Bearer token |
-| 🎓 **AI 指南** | [SKILL.md](./SKILL.md) 提供 AI 代理操作规则与排障 |
-
----
-
-## 🚀 快速开始
-
-### 前置条件
-
-- Node.js ≥ 18
-- 已安装并加载 Chrome 扩展的 [mcp-chrome-2026](https://github.com/phoenixlucky/mcp-chrome-2026)
-
-### 安装
-
-首次使用直接运行安装器：
+前置条件：Node.js ≥ 18，且 Chrome MCP 服务、扩展和 Native Host 已经运行。
 
 ```powershell
+node .\mcp-bridge.js path
 .\install.ps1
 ```
 
-安装器会：
+安装器只生成/合并当前项目的 `.mcp.json`，并把 `__BRIDGE_PATH__` 替换为当前仓库中的绝对路径；它不会启动或注册后端服务。配置完成后完全重启 AI 客户端。
 
-1. ✅ 自动生成 / 合并当前目录的 `.mcp.json`
-2. 🚀 测试 `mcp-chrome-bridge start`
-3. 🛡️ 无副作用 —— **不会执行 npm 安装**
+## MCP 客户端配置
 
-| 参数 | 说明 |
-|:---|:---|
-| `-SkipConfig` | 跳过 `.mcp.json` 自动生成 |
-
-> ℹ️ 仅当启动命令不可用或启动失败时，安装器才会提示手动安装 `@ethanwilkins/mcp-chrome-bridge-2026`。
-
----
-
-## ⚙️ MCP 客户端配置
-
-复制 [.mcp.json.example](./.mcp.json.example) 到项目根目录，或直接使用以下配置：
+### stdio 客户端
 
 ```json
 {
   "mcpServers": {
     "chrome": {
-      "command": "mcp-chrome-stdio",
+      "command": "node",
+      "args": ["__BRIDGE_PATH__", "--server"],
       "env": {
         "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new",
-        "MCP_SERVER_ORIGIN": "chrome-extension://mcp-stdio",
+        "MCP_PROTOCOL_MODE": "stateless",
+        "MCP_PROTOCOL_VERSION": "2026-07-28",
+        "MCP_SERVER_ORIGIN": "http://127.0.0.1",
         "CHROME_MCP_API_KEY": ""
       }
     }
@@ -109,86 +51,90 @@
 }
 ```
 
-服务启用鉴权时，在 `CHROME_MCP_API_KEY` 中填写服务端配置的 key；原生 stdio 会自动发送 `Authorization: Bearer <key>`。
+完整模板见 [.mcp.json.example](./.mcp.json.example)。服务启用鉴权时填写 `CHROME_MCP_API_KEY`；不要提交真实 key。
 
-> ⚠️ 不要把真实 API key 提交到仓库。
+### Streamable HTTP 客户端
 
----
-
-## 🔑 环境变量
-
-| 变量 | 默认值 | 说明 |
-|:---|:---|:---|
-| `MCP_SERVER_URL` | `http://127.0.0.1:12306/mcp-new` | 后端地址；原生通道自动回退 `/mcp` |
-| `MCP_SERVER_ORIGIN` | `chrome-extension://mcp-stdio` | 后端 Origin 白名单值 |
-| `CHROME_MCP_API_KEY` | 空 | 服务启用鉴权时必填，发送为 Bearer token |
-| `CHROME_MCP_ALLOWED_TOOLS` | 空 | 上游工具范围限制 |
-| `CHROME_MCP_REQUIRE_APPROVAL` | 空 | 上游高风险工具审批开关 |
-
----
-
-## 🔁 从旧 bridge 迁移
-
-**旧配置：**
+只有客户端能为每一条请求生成新版 headers、`_meta` 和合法 `Origin` 时，才直接配置：
 
 ```json
 {
-  "command": "node",
-  "args": [".../mcp-bridge.js", "--server"]
-}
-```
-
-**替换为：**
-
-```json
-{
-  "command": "mcp-chrome-stdio",
-  "env": {
-    "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new",
-    "MCP_SERVER_ORIGIN": "chrome-extension://mcp-stdio",
-    "CHROME_MCP_API_KEY": ""
+  "mcpServers": {
+    "chrome-mcp-new": {
+      "type": "streamableHttp",
+      "url": "http://127.0.0.1:12306/mcp-new"
+    }
   }
 }
 ```
 
-然后重新运行 `.\install.ps1`，**完全退出并重启 AI 客户端**。
+如果客户端不能自定义 `Origin`，或仍发送旧式 initialize/Session 请求，请改用上面的 `mcp-bridge.js --server`。
 
-> 🔄 旧 bridge 专用的 `MCP_PROTOCOL_MODE`、`MCP_PROTOCOL_VERSION` 与脚本路径不再需要。
+## `/mcp-new` 新版请求契约
 
----
+bridge 对每个 HTTP POST 自动发送：
 
-## 📦 项目结构
+| 位置 | 要求 |
+|:---|:---|
+| `MCP-Protocol-Version` | 必须为 `2026-07-28` |
+| `Mcp-Method` | 必须与 JSON-RPC `method` 完全一致 |
+| `Mcp-Name` | `tools/call` 必须携带，且与 `params.name` 完全一致 |
+| `Origin` | 必须是服务端白名单中的合法值；默认 `http://127.0.0.1` |
+| `params._meta` | 必须包含协议版本，并携带 clientInfo/clientCapabilities |
+| `Mcp-Session-Id` | `/mcp-new` 不发送、不保存、不依赖 |
+
+同时使用 `Content-Type: application/json` 和 `Accept: application/json, text/event-stream`。`_meta` 是 JSON-RPC body 中的协议元数据，不是 HTTP header；调用方已有的 `_meta` 会由 bridge 保留并合并。
+
+## Bridge CLI 示例
+
+不要直接手写旧式 JSON-RPC HTTP 请求；使用本仓库的新版 bridge：
+
+```powershell
+# /mcp-new 使用 server/discover，不使用 initialize 或 Session
+node .\mcp-bridge.js init
+
+# 发现工具
+node .\mcp-bridge.js call tools/list
+
+# 调用工具；--stdin 可避免 PowerShell 解释 URL 中的 &
+$body = @'
+{"name":"chrome_navigate","arguments":{"url":"https://example.com"}}
+'@
+$body | node .\mcp-bridge.js call tools/call --stdin
+```
+
+`node .\mcp-bridge.js close` 只会清理旧 `/mcp` 的 Session；对 `/mcp-new` 不执行 Session 关闭请求。
+
+## 环境变量
+
+| 变量 | 默认值 | 说明 |
+|:---|:---|:---|
+| `MCP_SERVER_URL` | `http://127.0.0.1:12306/mcp-new` | 后端端点；`/mcp` 使用旧兼容协议 |
+| `MCP_PROTOCOL_MODE` | `auto` | `auto`、`stateless` 或 `legacy` |
+| `MCP_PROTOCOL_VERSION` | 按端点选择 | `/mcp-new` 默认 `2026-07-28` |
+| `MCP_SERVER_ORIGIN` | `http://127.0.0.1` | 发给 HTTP 服务的 Origin；必须在白名单中 |
+| `CHROME_MCP_API_KEY` | 空 | 发送为 `Authorization: Bearer <key>` |
+
+注意：`MCP_SERVER_ORIGIN` 对 HTTP 请求同样生效，不是只给 stdio 配置使用。不要使用服务端未白名单允许的伪造 Origin。
+
+## 验证与排障
+
+```powershell
+Invoke-RestMethod 'http://127.0.0.1:12306/status?probe=1'
+node --test test/native-config.test.js test/mcp-bridge-new.test.js
+```
+
+服务状态应同时满足 `connectionState=ready`、`extension.connected=true`、`nativeHost.connected=true`、`probe.ok=true`、`tools.count>0`。401/403 检查 API key 和 Origin；远程或云端 AI 中的 `127.0.0.1` 指向远程机器，无法访问用户电脑上的 Chrome。
+
+## 项目结构
 
 ```text
 chrome-mcp-bridge-2026-skill/
-├── install.ps1                 # 安装器：生成配置 + 测试启动
-├── SKILL.md                    # AI 代理操作指南
-├── README.md                   # 本文件
-├── .mcp.json.example           # MCP 配置模板
-└── test/native-config.test.js  # 配置/安装器一致性测试
+├── mcp-bridge.js                 # 新版 /mcp-new bridge，同时兼容旧 /mcp
+├── SKILL.md                      # AI 代理使用规则
+├── .mcp.json.example             # stdio 配置模板
+├── install.ps1                   # 生成配置，不启动/注册后端
+└── test/                         # 配置与新版协议回归测试
 ```
 
----
-
-## ✅ 验证
-
-```powershell
-Get-Command mcp-chrome-stdio
-node --test test/native-config.test.js
-```
-
-测试覆盖：配置模板使用原生 stdio 与认证字段、安装器不再引用旧 bridge / Reasonix。
-
----
-
-## 📚 相关资源
-
-- [mcp-chrome-2026 项目 README](https://github.com/phoenixlucky/mcp-chrome-2026)
-- [`/mcp-new` 接口说明（MCP_NEW_zh.md）](https://github.com/phoenixlucky/mcp-chrome-2026/blob/master/docs/MCP_NEW_zh.md)
-- [Model Context Protocol 规范](https://modelcontextprotocol.io)
-
----
-
-## 📄 许可证
-
-本项目以 [MIT License](https://github.com/phoenixlucky/mcp-chrome-2026#license) 开源（与上游一致）。
+详细规则见 [SKILL.md](./SKILL.md)；上游接口说明见 [`MCP_NEW_zh.md`](https://github.com/phoenixlucky/mcp-chrome-2026/blob/master/docs/MCP_NEW_zh.md)。

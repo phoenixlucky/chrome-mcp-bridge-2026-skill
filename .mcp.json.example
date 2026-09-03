@@ -1,10 +1,13 @@
 {
   "mcpServers": {
     "chrome": {
-      "command": "mcp-chrome-stdio",
+      "command": "node",
+      "args": ["__BRIDGE_PATH__", "--server"],
       "env": {
         "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new",
-        "MCP_SERVER_ORIGIN": "chrome-extension://mcp-stdio",
+        "MCP_PROTOCOL_MODE": "stateless",
+        "MCP_PROTOCOL_VERSION": "2026-07-28",
+        "MCP_SERVER_ORIGIN": "http://127.0.0.1",
         "CHROME_MCP_API_KEY": ""
       }
     }
