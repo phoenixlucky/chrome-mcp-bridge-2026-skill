@@ -1,7 +1,6 @@
 ---
 name: chrome-mcp-bridge-2026-skill
 description: 使用仓库内新版 mcp-bridge.js 连接已有的本地 Chrome MCP 服务；默认对接 /mcp-new 无会话 Streamable HTTP，也兼容旧 /mcp Session 端点
-version: 4.1.0
 ---
 
 # Chrome MCP 使用规则
@@ -146,6 +145,8 @@ tools.count > 0
 
 用户要求浏览网页、搜索内容、读取页面、点击元素或提取数据时，优先使用 Chrome MCP。先运行 `tools/list`，只使用返回列表中的工具和参数，不要虚构工具名或调用方式。
 
+完整工具目录见 [references/tool-catalog.md](./references/tool-catalog.md)，其中逐个说明当前 76 个工具的用途和常用组合。服务升级后以实时 `tools/list` 返回的工具名与参数为准。
+
 常用工具包括：
 
 - `chrome_navigate`：打开网页
@@ -155,6 +156,8 @@ tools.count > 0
 - `chrome_fill_or_select`：填写表单
 - `chrome_extract`：提取结构化数据
 - `chrome_scroll`：滚动页面
+
+选择工具时优先按任务匹配：阅读网页用 `chrome_get_page_text`，看可操作元素用 `chrome_read_page`，点击/填写分别用 `chrome_click_element` / `chrome_fill_or_select`，复杂鼠标键盘操作用 `chrome_computer`，分页或虚拟列表采集用 `chrome_paginate_extract` / `collect_virtual_list`。
 
 ## 环境变量与排障
 

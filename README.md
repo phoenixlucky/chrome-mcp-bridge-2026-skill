@@ -132,9 +132,10 @@ node --test test/native-config.test.js test/mcp-bridge-new.test.js
 chrome-mcp-bridge-2026-skill/
 ├── mcp-bridge.js                 # 新版 /mcp-new bridge，同时兼容旧 /mcp
 ├── SKILL.md                      # AI 代理使用规则
+├── references/tool-catalog.md    # 76 个工具的用途和选择路径
 ├── .mcp.json.example             # stdio 配置模板
 ├── install.ps1                   # 生成配置，不启动/注册后端
 └── test/                         # 配置与新版协议回归测试
 ```
 
-详细规则见 [SKILL.md](./SKILL.md)；上游接口说明见 [`MCP_NEW_zh.md`](https://github.com/phoenixlucky/mcp-chrome-2026/blob/master/docs/MCP_NEW_zh.md)。
+详细规则见 [SKILL.md](./SKILL.md)，工具用途见 [references/tool-catalog.md](./references/tool-catalog.md)；上游接口说明见 [`MCP_NEW_zh.md`](https://github.com/phoenixlucky/mcp-chrome-2026/blob/master/docs/MCP_NEW_zh.md)。
