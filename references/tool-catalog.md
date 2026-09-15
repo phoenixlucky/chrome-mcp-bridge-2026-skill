@@ -56,6 +56,9 @@
 | `chrome_scan_for_section` | 滚动查找目标区域，可选择向上复扫。 |
 | `chrome_paginate_extract` | 抽取当前页、点击下一页，并在内容变化后继续分页。 |
 | `chrome_extract_records` | 从卡片抽取指定原始字段，并按文本规则排除记录。 |
+| `chrome_extract_review_summary` | 提取商品详情页 Reviews 区域的商品 ID、评分和评论数；评论数明确为 0 时返回可终止结果。 |
+| `chrome_crawl_links` | 按深度和节点上限递归访问页面链接，返回成功页面和部分失败结果。 |
+| `chrome_extract_thread` | 从主内容区域提取评论或回复，支持滚动加载、嵌套条目排除和匹配文本停止。 |
 | `collect_virtual_list` | 从动态或虚拟列表中滚动采集去重记录，支持停滞判断和回扫。 |
 | `collect_virtual_lists` | 在多个标签页或窗口并发采集虚拟列表，返回各目标结果和失败原因。 |
 | `chrome_select_all_items` | 滚动懒加载/虚拟列表并逐项勾选 checkbox，实现可靠的全选。 |
@@ -73,6 +76,7 @@
 | `chrome_block_images` | 阻止页面图片请求，适合导航/采集前减少流量。 |
 | `chrome_block_resources` | 按资源类型或 URL 模式拦截请求。 |
 | `chrome_console` | 读取控制台输出，支持一次性快照或持久缓冲。 |
+| `chrome_error_logs` | 读取或清除浏览器插件保留的原始错误日志，用于桌面端错误诊断。 |
 | `chrome_diagnostic_snapshot` | 返回截图、DOM、控制台和网络摘要组成的诊断快照。 |
 | `capture_debug_bundle` | 将失败现场的截图、DOM、控制台和脱敏网络摘要保存到下载目录。 |
 | `chrome_proxy_diagnostics` | 读取代理配置和 Chrome 接管状态，可测试代理出口，不返回账号密码。 |
@@ -128,9 +132,12 @@
 | 找按钮并点击 | `chrome_read_page` → `chrome_click_element`；定位困难时用 `chrome_locate_element` |
 | 填写表单 | `chrome_read_page`/`chrome_locate_element` → `chrome_fill_or_select` → `chrome_get_form_value` 验证 |
 | 抽取商品/表格 | `chrome_extract`；多页使用 `chrome_paginate_extract`，虚拟列表使用 `collect_virtual_list` |
+| 递归抓取同源链接 | `chrome_crawl_links`；设置深度、节点上限和字段提取，接受部分失败结果 |
+| 提取评论/回复 | `chrome_extract_thread`；适合评论区、回复串和滚动加载内容 |
+| 提取商品评论摘要 | `chrome_extract_review_summary`；评论数明确为 0 时停止，不要继续换入口或重试 |
 | 操作 SPA | `chrome_spa_fetch`；需要鼠标键盘时用 `chrome_computer` |
 | 点击后确认后端成功 | `wait_extract_response` |
 | 元素定位多次失败 | `chrome_request_element_selection`，请求用户人工选取 |
-| 调试页面异常 | `chrome_console` / `chrome_network_capture` → `chrome_diagnostic_snapshot` 或 `capture_debug_bundle` |
+| 调试页面异常 | `chrome_console` / `chrome_error_logs` / `chrome_network_capture` → `chrome_diagnostic_snapshot` 或 `capture_debug_bundle` |
 
 所有工具调用都应使用 `tools/list` 返回的最新参数；涉及发布、删除、Cookie、存储、用户脚本、文件上传或 Profile 管理时，先确认目标和副作用。

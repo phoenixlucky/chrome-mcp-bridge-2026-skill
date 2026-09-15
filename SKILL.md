@@ -1,172 +1,134 @@
 ---
 name: chrome-mcp-bridge-2026-skill
-description: 使用仓库内新版 mcp-bridge.js 连接已有的本地 Chrome MCP 服务；默认对接 /mcp-new 无会话 Streamable HTTP，也兼容旧 /mcp Session 端点
+description: 通过 mcp-chrome-bridge 的 STDIO 入口使用本地 Chrome MCP；帮助 AI 客户端自动启动或复用 HTTP 服务、发现浏览器工具并完成网页操作，同时兼容旧入口和 /mcp-new、/mcp 端点。
 ---
 
-# Chrome MCP 使用规则
+# 使用本地 Chrome MCP
 
-## 只连接已有服务
+## 何时使用
 
-本 skill 只连接已经运行的 Chrome MCP 服务，不负责启动或注册服务：
+用户要你打开网页、搜索、阅读、点击、填写、提取数据或调试浏览器，并且需要通过本地 Chrome MCP 服务完成时，使用本 skill。
 
-- 不执行 `mcp-chrome-bridge start`。
-- 不执行 `mcp-chrome-bridge register`。
-- 不主动执行 npm 全局安装。
+默认让 AI 客户端启动 STDIO 入口。STDIO 入口会检查本地 HTTP MCP 服务：
 
-默认端点：`http://127.0.0.1:12306/mcp-new`。
+- 服务已运行：直接复用；
+- 服务未运行：自动启动本地服务；
+- 不希望自动启动：设置 `CHROME_MCP_AUTOSTART_SERVER=0`，并确保服务已由用户提前启动。
 
-## `/mcp-new` 是无会话模式
+不要自行执行旧式 `start`、`register` 或 npm 全局安装命令。除非用户明确要求排查安装，否则只配置 STDIO 入口并执行浏览器任务。
 
-`/mcp-new` 使用 MCP `2026-07-28` 的按请求、无会话传输：
+## 推荐入口
 
-- 每一条请求都是独立的 HTTP `POST`。
-- 不先执行 `initialize` 或 `notifications/initialized`。
-- 不等待、保存或回传 `Mcp-Session-Id`；该端点不依赖 Session。
-- 连接旧兼容端点 `/mcp` 时，才使用旧版 initialize + Session 流程。
-
-## 必须使用新版 bridge
-
-不要手写旧式 JSON-RPC HTTP 请求，也不要引用其他备份目录中的 bridge。唯一入口是本仓库的 `mcp-bridge.js`：
-
-```powershell
-node .\mcp-bridge.js path
-node .\mcp-bridge.js init                 # /mcp-new 使用 server/discover，不使用 initialize
-node .\mcp-bridge.js call tools/list
-```
-
-调用工具时，PowerShell 使用 `--stdin`，避免 URL 中的 `&` 等字符被 shell 解释：
-
-```powershell
-$body = @'
-{"name":"chrome_navigate","arguments":{"url":"https://example.com"}}
-'@
-$body | node .\mcp-bridge.js call tools/call --stdin
-```
-
-`mcp-bridge.js` 会根据端点自动选择协议；对 `/mcp-new` 每次请求自动添加新版 headers 和 `_meta`，并禁止使用 Session 文件。
-
-## `/mcp-new` 请求契约
-
-每次新版 HTTP 请求必须同时满足：
-
-| 位置 | 必填内容 |
-|:---|:---|
-| HTTP header | `MCP-Protocol-Version: 2026-07-28` |
-| HTTP header | `Mcp-Method`，必须与 JSON-RPC `method` 完全一致 |
-| HTTP header | `Mcp-Name` 仅用于 `tools/call`，必须与 `params.name` 完全一致 |
-| HTTP header | `Origin`，必须是服务端白名单中的合法值 |
-| JSON-RPC `params` | `_meta` 协议元数据 |
-| `_meta` | `io.modelcontextprotocol/protocolVersion: 2026-07-28`，并携带 `clientInfo` 与 `clientCapabilities` |
-
-同时使用：
+优先使用新的统一命令：
 
 ```text
-Content-Type: application/json
-Accept: application/json, text/event-stream
+mcp-chrome-bridge --stdio
+mcp-chrome-bridge stdio
 ```
 
-`_meta` 位于 JSON-RPC 请求体中，不是 HTTP header。bridge 会保留调用方已有的 `_meta` 字段，并补齐：
+旧入口 `mcp-chrome-stdio` 继续兼容，但新配置应使用 `mcp-chrome-bridge --stdio`。如果命令不存在，先检查安装是否完成，不要擅自换成全局或备份目录中的同名脚本。
 
-```json
-{
-  "_meta": {
-    "io.modelcontextprotocol/protocolVersion": "2026-07-28",
-    "io.modelcontextprotocol/clientInfo": {
-      "name": "mcp-bridge-backend",
-      "version": "4.1.0"
-    },
-    "io.modelcontextprotocol/clientCapabilities": {}
-  }
-}
-```
+## AI 客户端配置
 
-## MCP 客户端配置
-
-### 推荐：客户端只支持 stdio
-
-使用仓库内 bridge 的 `--server` 模式；安装器会把 `__BRIDGE_PATH__` 替换为绝对路径：
+Claude、Codex 及其他支持 MCP STDIO 的客户端都使用类似配置：
 
 ```json
 {
   "mcpServers": {
-    "chrome": {
-      "command": "node",
-      "args": ["__BRIDGE_PATH__", "--server"],
+    "chrome-mcp": {
+      "command": "mcp-chrome-bridge",
+      "args": ["--stdio"],
       "env": {
-        "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new",
-        "MCP_PROTOCOL_MODE": "stateless",
-        "MCP_PROTOCOL_VERSION": "2026-07-28",
-        "MCP_SERVER_ORIGIN": "http://127.0.0.1",
-        "CHROME_MCP_API_KEY": ""
+        "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new"
       }
     }
   }
 }
 ```
 
-### 仅当客户端完整支持新版协议时直连 HTTP
+配置完成后完全重启 AI 客户端。需要关闭自动启动时加入：
 
-只有客户端能为每条请求生成上述 `MCP-Protocol-Version`、`Mcp-Method`、工具调用的 `Mcp-Name`、`_meta` 和合法 `Origin` 时，才直接配置：
+```json
+"CHROME_MCP_AUTOSTART_SERVER": "0"
+```
+
+API Key、工具白名单等既有环境变量继续沿用上游定义，不要改名、删除或写入真实密钥。需要自定义这些选项时，只修改 `env`，不要改 STDIO 命令结构。
+
+常用权限变量如下；未配置时保持上游默认兼容行为：
 
 ```json
 {
-  "mcpServers": {
-    "chrome-mcp-new": {
-      "type": "streamableHttp",
-      "url": "http://127.0.0.1:12306/mcp-new"
-    }
-  }
+  "CHROME_MCP_API_KEY": "",
+  "CHROME_MCP_ALLOWED_TOOLS": "chrome_read_page,chrome_get_tab_url,flow.*",
+  "CHROME_MCP_REQUIRE_APPROVAL": "true",
+  "CHROME_MCP_APPROVED_TOOLS": "flow.checkout"
 }
 ```
 
-若客户端不能自定义 `Origin` 或缺少上述任一字段，改用 `mcp-bridge.js --server`。
+白名单支持工具名和简单前缀通配符。启用审批后，高风险工具（JavaScript、用户脚本、写入/发布、文件上传、Profile 和 `flow.*`）还必须出现在批准清单中；范围外工具可能不会出现在 `tools/list`。
 
-## 检查服务是否可用
+## 一次浏览器任务的工作流
 
-连接或执行浏览器操作前，用以下命令检查已有服务：
+1. **连接**：让客户端启动 `mcp-chrome-bridge --stdio`；通常不需要手动启动 HTTP 服务。
+2. **发现工具**：先调用 `tools/list`，只使用实时返回的工具名和 `inputSchema`。
+3. **执行操作**：按任务选择最合适的 Chrome 工具，不要凭记忆虚构工具名或参数。
+4. **验证结果**：读取页面、检查表单值或等待网络响应，确认操作确实生效。
+
+服务正常时不必每一步重复检查状态。连接失败时再检查：
 
 ```powershell
 Invoke-RestMethod 'http://127.0.0.1:12306/status?probe=1'
 ```
 
-必须同时满足：
+若设置了 `CHROME_MCP_AUTOSTART_SERVER=0`，检查结果应至少确认服务 ready、扩展已连接、Native Host 已连接且工具数量大于 0。自动启动失败时，提示用户查看本地服务日志并重试；不要无限重试。
 
-```text
-connectionState = ready
-extension.connected = true
-nativeHost.connected = true
-probe.ok = true
-tools.count > 0
-```
+## 工具选择
 
-如果检查失败，不执行 `start` 或 `register`；提示用户恢复已有服务后再重试。
+| 用户意图 | 优先工具或顺序 |
+|---|---|
+| 打开、刷新或切换网页 | `chrome_navigate`；需要查看标签页时先 `get_windows_and_tabs` |
+| 阅读文章正文 | `chrome_get_page_text` |
+| 查看按钮、链接和表单 | `chrome_read_page` |
+| 点击或填写 | `chrome_read_page` → `chrome_click_element` / `chrome_fill_or_select` |
+| 验证表单值 | `chrome_get_form_value` |
+| 读取表格或结构化字段 | `chrome_extract` |
+| 多页列表 | `chrome_paginate_extract` |
+| 递归采集同源页面链接 | `chrome_crawl_links` |
+| 提取评论、回复或讨论串 | `chrome_extract_thread` |
+| 提取商品 Reviews 摘要 | `chrome_extract_review_summary` |
+| 动态/虚拟列表 | `collect_virtual_list` |
+| 点击后确认后台请求 | `wait_extract_response` |
+| 复杂鼠标键盘交互 | `chrome_computer` |
+| 页面异常排查 | `chrome_console` / `chrome_error_logs` / `chrome_network_capture` → `chrome_diagnostic_snapshot` |
 
-## 浏览器操作
+定位失败时先重新读取页面，再用 `chrome_locate_element`；仍失败才使用 `chrome_request_element_selection` 请求用户手动选择元素。点击前优先使用可复用的页面 `ref`，不要盲点坐标。
 
-用户要求浏览网页、搜索内容、读取页面、点击元素或提取数据时，优先使用 Chrome MCP。先运行 `tools/list`，只使用返回列表中的工具和参数，不要虚构工具名或调用方式。
+完整工具目录见 [references/tool-catalog.md](./references/tool-catalog.md)，但上游升级后始终以实时 `tools/list` 为准。
 
-完整工具目录见 [references/tool-catalog.md](./references/tool-catalog.md)，其中逐个说明当前 76 个工具的用途和常用组合。服务升级后以实时 `tools/list` 返回的工具名与参数为准。
+## 端点和协议
 
-常用工具包括：
+默认端点是 `http://127.0.0.1:12306/mcp-new`。原有 API Key、工具白名单和以下两种端点都继续支持：
 
-- `chrome_navigate`：打开网页
-- `chrome_get_page_text`：读取正文
-- `chrome_screenshot`：截图
-- `chrome_click_element`：点击元素
-- `chrome_fill_or_select`：填写表单
-- `chrome_extract`：提取结构化数据
-- `chrome_scroll`：滚动页面
+- `/mcp-new`：MCP `2026-07-28` 无 Session 模式，每条请求独立处理；不要对后端先发 `initialize`，不要保存或回传 `Mcp-Session-Id`。
+- `/mcp`：旧兼容模式，使用 `initialize` 和 `Mcp-Session-Id`。
 
-选择工具时优先按任务匹配：阅读网页用 `chrome_get_page_text`，看可操作元素用 `chrome_read_page`，点击/填写分别用 `chrome_click_element` / `chrome_fill_or_select`，复杂鼠标键盘操作用 `chrome_computer`，分页或虚拟列表采集用 `chrome_paginate_extract` / `collect_virtual_list`。
+STDIO 客户端发给 bridge 自身的 `initialize` 仍应正常处理；“不发送 initialize”只针对后端 `/mcp-new` 请求。
 
-## 环境变量与排障
+由 bridge 负责适配 `/mcp-new` 所需的协议字段，包括：
 
-| 变量 | 默认值 | 说明 |
-|:---|:---|:---|
-| `MCP_SERVER_URL` | `http://127.0.0.1:12306/mcp-new` | 后端端点；`/mcp` 使用旧兼容协议 |
-| `MCP_PROTOCOL_MODE` | `auto` | `auto`、`stateless` 或 `legacy` |
-| `MCP_PROTOCOL_VERSION` | 按端点选择 | `/mcp-new` 默认 `2026-07-28` |
-| `MCP_SERVER_ORIGIN` | `http://127.0.0.1` | 发给 HTTP 服务的合法 Origin；必须在服务端白名单中 |
-| `CHROME_MCP_API_KEY` | 空 | 服务启用鉴权时发送为 Bearer token |
+- `MCP-Protocol-Version: 2026-07-28`
+- 与 JSON-RPC `method` 一致的 `Mcp-Method`
+- `tools/call` 对应的 `Mcp-Name`
+- 合法的 `Origin`
+- `params._meta` 中的协议版本、`clientInfo` 和 `clientCapabilities`
 
-HTTP 请求即使来自本机，也必须携带合法 `Origin`；`MCP_SERVER_ORIGIN` 不是只给 stdio 配置的变量。Origin 错误检查该值与服务端白名单，401/403 检查 API key，远程或云端 AI 中的 `127.0.0.1` 则指向远程机器，无法访问用户电脑上的 Chrome。
+不要手写 HTTP 请求绕过 bridge。调用方传入的 `_meta`、`inputResponses`、`requestState` 等字段，以及结果中的 `resultType`、`task`、`content` 等字段都必须保留和正确处理。
+
+## 错误与副作用
+
+- 命令不存在：检查客户端是否能找到 `mcp-chrome-bridge`，必要时使用安装器或绝对路径配置；不要换用未知版本脚本。
+- 服务未 ready：先确认自动启动是否被 `CHROME_MCP_AUTOSTART_SERVER=0` 关闭，再检查本地服务日志和 status。
+- 401/403：检查 API Key、Origin 和工具白名单。
+- 工具不存在或参数错误：重新执行 `tools/list`，按实时 schema 修正调用。
+- `input_required`：根据返回的输入请求向用户询问必要信息，再用返回状态继续调用。
+- 发布、删除、Cookie、Storage、用户脚本、上传文件和 Profile 管理：执行前确认目标和副作用；发布结果不确定时不要自动重试。
