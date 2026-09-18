@@ -1,6 +1,6 @@
 ---
 name: chrome-mcp-bridge-2026-skill
-description: 通过 mcp-chrome-bridge 的 STDIO 入口使用本地 Chrome MCP；帮助 AI 客户端自动启动或复用 HTTP 服务、发现浏览器工具并完成网页操作，同时兼容旧入口和 /mcp-new、/mcp 端点。
+description: 通过本仓库的 mcp-bridge.js 以 STDIO 入口使用本地 Chrome MCP；帮助 AI 客户端复用或自动启动本地 HTTP 服务、发现浏览器工具并完成网页操作，兼容 /mcp-new 与旧 /mcp 端点。内置 doctor 自检与 tools 工具浏览命令。
 ---
 
 # 使用本地 Chrome MCP
@@ -9,7 +9,17 @@ description: 通过 mcp-chrome-bridge 的 STDIO 入口使用本地 Chrome MCP；
 
 用户要你打开网页、搜索、阅读、点击、填写、提取数据或调试浏览器，并且需要通过本地 Chrome MCP 服务完成时，使用本 skill。
 
-默认让 AI 客户端启动 STDIO 入口。STDIO 入口会检查本地 HTTP MCP 服务：
+## 推荐入口
+
+本仓库自带 bridge，**用绝对路径调用仓库内的脚本**，不要依赖全局同名命令（全局目录或备份目录里的版本可能与本仓库不一致）：
+
+```powershell
+node <仓库根目录>/mcp-bridge.js --server
+```
+
+`--server` 与 `--stdio` 等价。若已用 `npm link` 把本包链接到全局，也可以直接使用 `chrome-mcp-bridge-2026 --server`。
+
+STDIO 入口会检查本地 HTTP MCP 服务：
 
 - 服务已运行：直接复用；
 - 服务未运行：自动启动本地服务；
@@ -17,16 +27,17 @@ description: 通过 mcp-chrome-bridge 的 STDIO 入口使用本地 Chrome MCP；
 
 不要自行执行旧式 `start`、`register` 或 npm 全局安装命令。除非用户明确要求排查安装，否则只配置 STDIO 入口并执行浏览器任务。
 
-## 推荐入口
+## 第一步永远是自检
 
-优先使用新的统一命令：
+遇到"连不上/工具不见了/配置不对"，先跑自检，不要盲目重试：
 
-```text
-mcp-chrome-bridge --stdio
-mcp-chrome-bridge stdio
+```powershell
+node <仓库根目录>/mcp-bridge.js doctor
 ```
 
-旧入口 `mcp-chrome-stdio` 继续兼容，但新配置应使用 `mcp-chrome-bridge --stdio`。如果命令不存在，先检查安装是否完成，不要擅自换成全局或备份目录中的同名脚本。
+它会依次检查 Node 版本、客户端配置、后端服务、浏览器链路和工具数量，并对失败项给出「下一步」。`doctor` 已经带上了后端要求的合法 `Origin`。
+
+> ⚠️ 不要用裸 `Invoke-RestMethod 'http://127.0.0.1:12306/status?probe=1'` 判断服务状态：`/status` 同样校验 `Origin`，缺少合法 `Origin` 时只会返回 `{"error":"MCP requests must include an allowed Origin or a valid API key."}`，看起来像服务故障。
 
 ## AI 客户端配置
 
@@ -35,18 +46,27 @@ Claude、Codex 及其他支持 MCP STDIO 的客户端都使用类似配置：
 ```json
 {
   "mcpServers": {
-    "chrome-mcp": {
-      "command": "mcp-chrome-bridge",
-      "args": ["--stdio"],
+    "chrome": {
+      "command": "node",
+      "args": ["<仓库根目录>/mcp-bridge.js", "--server"],
       "env": {
-        "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new"
+        "MCP_SERVER_URL": "http://127.0.0.1:12306/mcp-new",
+        "MCP_PROTOCOL_MODE": "stateless",
+        "MCP_PROTOCOL_VERSION": "2026-07-28",
+        "MCP_SERVER_ORIGIN": "http://127.0.0.1"
       }
     }
   }
 }
 ```
 
-配置完成后完全重启 AI 客户端。需要关闭自动启动时加入：
+不要手写这份配置——运行安装器自动生成（它会写入正确的绝对路径，并在写完后探测一次后端）：
+
+```powershell
+node <仓库根目录>/install.js     # 跨平台；PowerShell 也可用 .\install.ps1
+```
+
+配置完成后**完全重启** AI 客户端。需要关闭自动启动时加入：
 
 ```json
 "CHROME_MCP_AUTOSTART_SERVER": "0"
@@ -69,18 +89,14 @@ API Key、工具白名单等既有环境变量继续沿用上游定义，不要�
 
 ## 一次浏览器任务的工作流
 
-1. **连接**：让客户端启动 `mcp-chrome-bridge --stdio`；通常不需要手动启动 HTTP 服务。
-2. **发现工具**：先调用 `tools/list`，只使用实时返回的工具名和 `inputSchema`。
+1. **连接**：让客户端启动 `<仓库根目录>/mcp-bridge.js --server`；通常不需要手动启动 HTTP 服务。
+2. **发现工具**：先调用 `tools/list`，只使用实时返回的工具名和 `inputSchema`。用 CLI 快速浏览时可用 `node <仓库根目录>/mcp-bridge.js tools`（一行一个工具），需要精确 schema 时用 `tools <name>`。
 3. **执行操作**：按任务选择最合适的 Chrome 工具，不要凭记忆虚构工具名或参数。
 4. **验证结果**：读取页面、检查表单值或等待网络响应，确认操作确实生效。
 
-服务正常时不必每一步重复检查状态。连接失败时再检查：
+服务正常时不必每一步重复检查状态；连接失败时再跑 `doctor`。
 
-```powershell
-Invoke-RestMethod 'http://127.0.0.1:12306/status?probe=1'
-```
-
-若设置了 `CHROME_MCP_AUTOSTART_SERVER=0`，检查结果应至少确认服务 ready、扩展已连接、Native Host 已连接且工具数量大于 0。自动启动失败时，提示用户查看本地服务日志并重试；不要无限重试。
+若设置了 `CHROME_MCP_AUTOSTART_SERVER=0`，自检结果应至少确认服务 ready、扩展已连接、Native Host 已连接且工具数量大于 0。自动启动失败时，提示用户查看本地服务日志并重试；不要无限重试。
 
 ## 工具选择
 
@@ -124,10 +140,29 @@ STDIO 客户端发给 bridge 自身的 `initialize` 仍应正常处理；“不�
 
 不要手写 HTTP 请求绕过 bridge。调用方传入的 `_meta`、`inputResponses`、`requestState` 等字段，以及结果中的 `resultType`、`task`、`content` 等字段都必须保留和正确处理。
 
+## CLI 速查
+
+```powershell
+node <仓库根目录>/mcp-bridge.js doctor          # 自检（排障第一步）
+node <仓库根目录>/mcp-bridge.js tools           # 列出全部工具用途
+node <仓库根目录>/mcp-bridge.js tools <name>    # 单个工具的完整 schema
+node <仓库根目录>/mcp-bridge.js init            # 初始化连接
+node <仓库根目录>/mcp-bridge.js --help          # 全部命令
+```
+
+调用工具时用 `--stdin`（避免 shell 转义）或 `--args-file <路径>`：
+
+```powershell
+$body = @'
+{"name":"chrome_navigate","arguments":{"url":"https://example.com"}}
+'@
+$body | node <仓库根目录>/mcp-bridge.js call tools/call --stdin
+```
+
 ## 错误与副作用
 
-- 命令不存在：检查客户端是否能找到 `mcp-chrome-bridge`，必要时使用安装器或绝对路径配置；不要换用未知版本脚本。
-- 服务未 ready：先确认自动启动是否被 `CHROME_MCP_AUTOSTART_SERVER=0` 关闭，再检查本地服务日志和 status。
+- 命令不存在：确认调用的是本仓库 `mcp-bridge.js` 的绝对路径；不要换用未知版本脚本。
+- 服务未 ready：先跑 `doctor`；确认自动启动是否被 `CHROME_MCP_AUTOSTART_SERVER=0` 关闭，再检查本地服务日志。
 - 401/403：检查 API Key、Origin 和工具白名单。
 - 工具不存在或参数错误：重新执行 `tools/list`，按实时 schema 修正调用。
 - `input_required`：根据返回的输入请求向用户询问必要信息，再用返回状态继续调用。

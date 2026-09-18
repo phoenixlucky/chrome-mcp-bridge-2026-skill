@@ -1,0 +1,20 @@
+{
+  "name": "chrome-mcp-bridge-2026-skill",
+  "version": "4.2.0",
+  "private": true,
+  "description": "本地 Chrome MCP 的 MCP 2026-07-28 无状态 stdio 桥接与 skill：一行命令完成配置，内置 doctor 自检",
+  "type": "commonjs",
+  "bin": {
+    "chrome-mcp-bridge-2026": "mcp-bridge.js"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "doctor": "node mcp-bridge.js doctor",
+    "tools": "node mcp-bridge.js tools",
+    "install:config": "node install.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

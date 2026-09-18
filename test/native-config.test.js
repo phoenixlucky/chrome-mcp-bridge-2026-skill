@@ -25,3 +25,27 @@ test('installer resolves the bridge path without starting or registering service
   assert.doesNotMatch(installer, /npm install/);
   assert.match(installer, /\$SkipConfig/);
 });
+
+test('install.ps1 keeps a UTF-8 BOM so Windows PowerShell 5.1 reads Chinese correctly', () => {
+  const raw = fs.readFileSync(path.join(ROOT, 'install.ps1'));
+  assert.deepEqual([...raw.subarray(0, 3)], [0xEF, 0xBB, 0xBF],
+    'install.ps1 must start with a UTF-8 BOM, otherwise PowerShell 5.1 mangles the Chinese strings and the script fails to parse');
+});
+
+test('install.ps1 delegates to the cross-platform install.js', () => {
+  const installer = fs.readFileSync(path.join(ROOT, 'install.ps1'), 'utf8');
+  assert.match(installer, /install\.js/);
+  assert.match(installer, /--skip-config/);
+  assert.match(installer, /--no-probe/);
+});
+
+test('package.json wires up runnable scripts and the Node floor', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.equal(pkg.engines.node, '>=18');
+  // `node --test test` 在 Windows 上会报 MODULE_NOT_FOUND，必须用显式 glob/文件列表
+  assert.match(pkg.scripts.test, /--test/);
+  assert.doesNotMatch(pkg.scripts.test, /--test test(\s|$)/);
+  for (const name of ['doctor', 'tools', 'install:config']) {
+    assert.ok(pkg.scripts[name], `missing npm script: ${name}`);
+  }
+});
